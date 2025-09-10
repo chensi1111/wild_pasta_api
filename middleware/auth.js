@@ -1,3 +1,4 @@
+const logger = require('../logger')
 const response = require("../utils/response_codes");
 const jwt = require('jsonwebtoken');
 const SECRET_KEY = process.env.JWT_ACCESS_SECRET;
@@ -9,6 +10,7 @@ function verifyToken(req, res, next) {
   const token = authHeader && authHeader.split(' ')[1];
 
   if (!token) {
+    logger.warn('缺少 access token')
     return sendError(res, response.unauthorized, '缺少 access token', 401);
   }
   try {
@@ -16,6 +18,7 @@ function verifyToken(req, res, next) {
     req.user = decoded; 
     next(); 
   } catch (err) {
+    logger.error(err)
     sendError(res, response.invalid_accessToken, '無效的 access token', 401);
   }
 }

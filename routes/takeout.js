@@ -1,4 +1,5 @@
 const express = require('express');
+const logger=require('../logger');
 const db =require('../db')
 const { randomUUID } = require('crypto');
 const response=require('../utils/response_codes')
@@ -54,7 +55,7 @@ router.post("/time", async (req, res) => {
     }
   } 
 */
-  console.log('查詢的資料:', req.body);
+  logger.info("/api/takeout/time", req.body);
   let { count } = req.body;
   try {
     // 查詢當前時間+105分鐘以後的時段
@@ -87,6 +88,7 @@ router.post("/time", async (req, res) => {
     }
 
     if (availableTimes.length === 0) {
+      logger.warn("沒有可用的時段")
       return sendError(res, response.empty_capacity, '沒有可用的時段');
     }
 
@@ -100,7 +102,7 @@ router.post("/time", async (req, res) => {
     });
 
   } catch (error) {
-    console.error('查詢錯誤:', error);
+    logger.error(error)
     return sendError(res, response.server_error, '伺服器錯誤，請稍後再試', 500);
   }
 });
@@ -202,34 +204,42 @@ router.post("/order",async (req, res) => {
       }
   } 
 */
-  console.log('下單的資料:', req.body);
+  logger.info('/api/takeout/order',req.body)
   let { userId,name,date,start_time,end_time,list,count,price,discount,point,remark,phone_number,email } = req.body;
   if(!name|| !date || !start_time|| !end_time|| !list|| !count|| !price|| !phone_number|| !email){
+    logger.warn("缺乏必要資料")
     return sendError(res, response.missing_info, '缺乏必要資料');
   }
   if(name.length > 20) {
+    logger.warn("姓名過長")
     return sendError(res, response.invalid_name, '姓名過長');
   }
   const phoneRegex = /^(09\d{8}|0\d{1,3}-?\d{6,8})$/;
   if (!phoneRegex.test(phone_number)) {
+    logger.warn("電話號碼格式錯誤")
     return sendError(res, response.invalid_phone, '電話號碼格式錯誤');
   }
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) {
+    logger.warn("Email格式錯誤")
     return sendError(res, response.invalid_email, 'Email格式錯誤');
   }
   const allowedTimes = ['11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30', '21:00'];
   if (!allowedTimes.includes(start_time)) {
+    logger.warn("不符合規範的時間")
     return sendError(res, response.invalid_time, '不符合規範的時間');
   }
   const dateRegex = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
   if (!dateRegex.test(date)) {
+    logger.warn("日期格式錯誤")
     return sendError(res, response.invalid_date, '日期格式錯誤');
   }
   if(remark && remark.length > 100) {
+    logger.warn("備註過長")
     return sendError(res, response.invalid_remark, '備註過長');
   }
   if(price<=0){
+    logger.warn("金額錯誤")
     return sendError(res, response.invalid_price, '金額錯誤');
   }
   const client = await db.connect();
@@ -248,6 +258,7 @@ router.post("/order",async (req, res) => {
 
   if (result.rows.length === 0) {
     await client.query('ROLLBACK');
+    logger.warn("該時段單量已滿")
     return sendError(res, response.empty_capacity, '該時段單量已滿');
   }
   // 產生訂單號碼
@@ -379,7 +390,7 @@ router.post("/order",async (req, res) => {
   });
 } catch (error) {
   await client.query('ROLLBACK');
-  console.error(error);
+  logger.error(error)
   sendError(res, response.server_error, '伺服器錯誤',500);
 }finally {
   // 釋放連線
@@ -424,11 +435,12 @@ router.post('/cancel', verifyToken, async (req, res) => {
     }
   } 
 */
-  console.log('收到的單號:', req.body);
+  logger.info('/api/takeout/cancel',req.body)
   const { ord_number } = req.body;
   const { userId } = req.user;
 
   if (!ord_number) {
+    logger.warn("缺少訂單編號")
     return sendError(res, response.missing_info, '缺少訂單編號');
   }
 
@@ -445,6 +457,7 @@ router.post('/cancel', verifyToken, async (req, res) => {
     const rows = result.rows;
     if (rows.length === 0) {
       await client.query('ROLLBACK');
+      logger.warn("找不到該筆訂單")
       return sendError(res, response.unfound_ord, '找不到該筆訂單');
     }
 
@@ -452,6 +465,7 @@ router.post('/cancel', verifyToken, async (req, res) => {
     const orderStatus = order.status;
     if(orderStatus==='cancelled'){
       await client.query('ROLLBACK');
+      logger.warn("無法重複取消訂單")
       return sendError(res, response.cancel_error, '無法重複取消訂單');
     }
     const point = order.point;
@@ -460,6 +474,7 @@ router.post('/cancel', verifyToken, async (req, res) => {
     // 確認是否是自己的訂單
     if (order.user_id !== userId) {
       await client.query('ROLLBACK');
+      logger.warn("無權限取消此訂單")
       return sendError(res, response.unauthorized_activity, '無權限取消此訂單');
     }
 
@@ -491,7 +506,7 @@ router.post('/cancel', verifyToken, async (req, res) => {
     });
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('取消錯誤:', error);
+    logger.error(error)
     return sendError(res, response.server_error, '伺服器錯誤，請稍後再試', 500);
   } finally {
     client.release();
@@ -535,10 +550,11 @@ router.post('/cancel-email', async (req, res) => {
   } 
 */
 
-  console.log('收到的資料:', req.body);
+  logger.info('/api/takeout/cancel-email',req.body)
   const { cancel_token } = req.body;
 
   if (!cancel_token) {
+    logger.warn("缺少訂單資訊")
     return sendError(res, response.missing_info, '缺少訂單資訊');
   }
 
@@ -555,6 +571,7 @@ router.post('/cancel-email', async (req, res) => {
     const rows = result.rows;
     if (rows.length === 0) {
       await client.query('ROLLBACK');
+      logger.warn("找不到該筆訂單")
       return sendError(res, response.unfound_ord, '找不到該筆訂單');
     }
     const order = rows[0];
@@ -566,6 +583,7 @@ router.post('/cancel-email', async (req, res) => {
     const cancel_expired = order.cancel_expired
     if(orderStatus==='cancelled'){
       await client.query('ROLLBACK');
+      logger.warn("無法重複取消訂單")
       return sendError(res, response.cancel_error, '無法重複取消訂單',{ord_number});
     }
   
@@ -573,6 +591,7 @@ router.post('/cancel-email', async (req, res) => {
     const now = dayjs();
     if (now.isAfter(cancel_expired)) {
       await client.query('ROLLBACK');
+      logger.warn("已超過可取消時間")
       return sendError(res, response.expired_cancel, '已超過可取消時間',{ord_number});
     }
 
@@ -609,7 +628,7 @@ router.post('/cancel-email', async (req, res) => {
     });
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('取消錯誤:', error);
+    logger.error(error)
     return sendError(res, response.server_error, '伺服器錯誤，請稍後再試', 500);
   } finally {
     client.release();

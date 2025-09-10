@@ -1,4 +1,5 @@
 const express = require("express");
+const logger = require("../logger")
 const response = require("../utils/response_codes");
 const router = express.Router();
 const db = require("../db");
@@ -63,31 +64,36 @@ router.post("/register", async (req, res) => {
     }
   } 
 */
-  console.log("/register收到的資料:", req.body);
+  logger.info('/api/user/register',req.body)
   let { account, password, email, name } = req.body;
   account = account?.trim();
   email = email?.trim();
   name = name?.trim();
 
   if (!account || !password || !email || !name) {
+    logger.warn("缺少必要的資料")
     return sendError(res, response.missing_info, "缺少必要的資料");
   }
   if (name.length > 20) {
+    logger.warn("姓名過長")
     return sendError(res, response.invalid_name, "姓名過長");
   }
 
   const accountRegex = /^[a-zA-Z0-9_]{4,20}$/;
   if (!accountRegex.test(account)) {
+    logger.warn("帳號格式錯誤")
     return sendError(res, response.invalid_account, "帳號格式錯誤");
   }
 
   const passwordRegex = /^(?=.*[A-Za-z]).{8,}$/;
   if (!passwordRegex.test(password)) {
+    logger.warn("密碼格式錯誤")
     return sendError(res, response.invalid_password, "密碼格式錯誤");
   }
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) {
+    logger.warn("Email格式錯誤")
     return sendError(res, response.invalid_email, "Email格式錯誤");
   }
 
@@ -99,9 +105,11 @@ router.post("/register", async (req, res) => {
     const rows = result.rows
     for (const row of rows) {
       if (row.account === account) {
+        logger.warn("帳號已被使用")
         return sendError(res, response.account_conflict, "帳號已被使用");
       }
       if (row.email === email) {
+        logger.warn("信箱已被使用")
         return sendError(res, response.email_conflict, "信箱已被使用");
       }
     }
@@ -113,13 +121,12 @@ router.post("/register", async (req, res) => {
       "INSERT INTO users (user_id, account, password, email, name) VALUES ($1, $2, $3, $4, $5)",
       [userId, account, hashedPassword, email, name]
     );
-    console.log("註冊成功");
     res.status(201).json({
       code: response.success,
       msg: "註冊成功",
     });
   } catch (error) {
-    console.error("註冊錯誤:", error);
+    logger.error(error)
     return sendError(res, response.server_error, "伺服器錯誤，請稍後再試", 500);
   }
 });
@@ -171,21 +178,24 @@ router.post("/login", async (req, res) => {
     }
   } 
 */
-  console.log("/login收到的資料:", req.body);
+  logger.info('/api/user/login',req.body)
   let { account, password } = req.body;
   account = account?.trim();
 
   if (!account || !password) {
+    logger.warn("缺少必要的資料")
     return sendError(res, response.missing_info, "缺少必要的資料");
   }
 
   const accountRegex = /^[a-zA-Z0-9_]{4,20}$/;
   if (!accountRegex.test(account)) {
+    logger.warn("帳號格式錯誤")
     return sendError(res, response.invalid_account, "帳號格式錯誤");
   }
 
   const passwordRegex = /^(?=.*[A-Za-z]).{8,}$/;
   if (!passwordRegex.test(password)) {
+    logger.warn("密碼格式錯誤")
     return sendError(res, response.invalid_password, "密碼格式錯誤");
   }
 
@@ -195,11 +205,13 @@ router.post("/login", async (req, res) => {
     ]);
     const rows = result.rows;
     if (rows.length === 0) {
+      logger.warn("帳號不存在")
       return sendError(res, response.unfound_account, "帳號不存在");
     }
     const user = rows[0];
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
+      logger.warn("密碼錯誤")
       return sendError(res, response.wrong_password, "密碼錯誤");
     }
 
@@ -219,7 +231,6 @@ router.post("/login", async (req, res) => {
       "INSERT INTO refresh_tokens (token, user_id, expires_at) VALUES ($1, $2, $3)",
       [tokens.refreshToken, user.user_id, expiresAt]
     );
-    console.log("登入成功");
     res.status(200).json({
       code: response.success,
       msg: "登入成功",
@@ -235,7 +246,7 @@ router.post("/login", async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("登入錯誤:", error);
+    logger.error(error)
     return sendError(res, response.server_error, "伺服器錯誤，請稍後再試", 500);
   }
 });
@@ -281,14 +292,11 @@ router.post("/refresh", async (req, res) => {
     }
   } 
 */
-  console.log("/refresh收到的資料:", req.body);
+  logger.info('/api/user/refresh',req.body)
   const { refreshToken, userId } = req.body;
   if (!refreshToken) {
-    return sendError(
-      res,
-      response.missing_info,
-      "缺少RefreshToken"
-    );
+    logger.warn("缺少RefreshToken")
+    return sendError(res,response.missing_info,"缺少RefreshToken");
   }
 
   try {
@@ -299,11 +307,8 @@ router.post("/refresh", async (req, res) => {
     );
     const rows = result.rows
     if (rows.length === 0) {
-      return sendError(
-        res,
-        response.invalid_refreshToken,
-        "Refresh Token 無效"
-      );
+      logger.warn("Refresh Token 無效")
+      return sendError(res,response.invalid_refreshToken,"Refresh Token 無效");
     }
     const tokens = getTokens(refreshToken);
     // 從資料庫中移除 refreshToken
@@ -318,7 +323,6 @@ router.post("/refresh", async (req, res) => {
       "INSERT INTO refresh_tokens (token, user_id, expires_at) VALUES ($1, $2, $3)",
       [tokens.refreshToken, userId, expiresAt]
     );
-    console.log("成功刷新 Token");
     res.status(200).json({
       code: response.success,
       msg: "成功刷新 Token",
@@ -328,12 +332,8 @@ router.post("/refresh", async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("刷新 Token 錯誤:", error);
-    return sendError(
-      res,
-      response.invalid_refreshToken,
-      "Refresh Token 無效或過期"
-    );
+    logger.error(error)
+    return sendError(res, response.server_error, "伺服器錯誤，請稍後再試", 500);
   }
 });
 // 登出
@@ -371,14 +371,11 @@ router.post("/logout", async (req, res) => {
     }
   } 
 */
-  console.log("/logout收到的資料:", req.body);
+  logger.info('/api/user/logout',req.body)
   const { refreshToken } = req.body;
   if (!refreshToken) {
-    return sendError(
-      res,
-      response.missing_info,
-      "缺少 Refresh Token"
-    );
+    logger.warn("缺少 Refresh Token")
+    return sendError(res,response.missing_info,"缺少 Refresh Token");
   }
 
   try {
@@ -386,13 +383,12 @@ router.post("/logout", async (req, res) => {
     await db.query("DELETE FROM refresh_tokens WHERE token = $1", [
       refreshToken,
     ]);
-    console.log("成功登出");
     return res.status(200).json({
       code: response.success,
       msg: "成功登出",
     });
   } catch (error) {
-    console.error("登出錯誤:", error);
+    logger.error(error)
     return sendError(res, response.server_error, "伺服器錯誤，請稍後再試", 500);
   }
 });
@@ -456,11 +452,12 @@ router.post("/reserve", verifyToken, async (req, res) => {
     }
   } 
 */
-  console.log("/reserve收到的資料:", req.body);
+  logger.info('/api/user/reserve',req.body)
   const { userId } = req.user;
   const { page, pageSize } = req.body;
   const offset = (page - 1) * pageSize;
   if (page < 1 || pageSize < 1) {
+    logger.warn("錯誤的分頁資訊")
     return sendError(res, response.invalid_pageInfo, "錯誤的分頁資訊");
   }
   try {
@@ -489,7 +486,7 @@ router.post("/reserve", verifyToken, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("查詢 reserves 發生錯誤:", error);
+    logger.error(error)
     return sendError(res, response.server_error, "伺服器錯誤，請稍後再試", 500);
   }
 });
@@ -554,11 +551,12 @@ router.post("/takeout", verifyToken, async (req, res) => {
     }
   } 
 */
-  console.log("/takeout收到的資料:", req.body);
+  logger.info('/api/user/takeout',req.body)
   const { userId } = req.user;
   const { page, pageSize } = req.body;
   const offset = (page - 1) * pageSize;
   if (page < 1 || pageSize < 1) {
+    logger.warn("錯誤的分頁資訊")
     return sendError(res, response.invalid_pageInfo, "錯誤的分頁資訊");
   }
   try {
@@ -587,7 +585,7 @@ router.post("/takeout", verifyToken, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("查詢 reserves 發生錯誤:", error);
+    logger.error(error)
     return sendError(res, response.server_error, "伺服器錯誤，請稍後再試", 500);
   }
 });
@@ -629,16 +627,18 @@ router.post("/change-email-request", verifyToken, async (req, res) => {
     }
   } 
 */
-  console.log("/change-email-request收到的資料:", req.body);
+  logger.info('/api/user/change-email-request',req.body)
   const { userId } = req.user;
   const { email } = req.body;
 
   if (!email) {
+    logger.warn("缺少必要的資料")
     return sendError(res, response.missing_info, "缺少必要的資料");
   }
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) {
+    logger.warn("Email格式錯誤")
     return sendError(res, response.invalid_email, "Email格式錯誤");
   }
   const client = await db.connect();
@@ -650,6 +650,7 @@ router.post("/change-email-request", verifyToken, async (req, res) => {
     const rows =result.rows
     if (rows.length > 0) {
       client.query('ROLLBACK');
+      logger.warn("信箱已被使用")
       return sendError(res, response.email_conflict, "信箱已被使用");
     }
     // 查詢同一 email 是否存在未過期的驗證碼
@@ -664,6 +665,7 @@ router.post("/change-email-request", verifyToken, async (req, res) => {
     if( checkVerifyCode.rows.length > 0) {
       console.log(checkVerifyCode.rows[0],new Date(Date.now()));
       client.query('ROLLBACK');
+      logger.warn("已發送驗證碼，請5分鐘後再試")
       return sendError(res, response.verify_conflict, "已發送驗證碼，請5分鐘後再試");
     }
     const expiresAt = dayjs.utc().add(5, 'minute').toDate();
@@ -702,8 +704,8 @@ router.post("/change-email-request", verifyToken, async (req, res) => {
       data: {},
     });
   } catch (error) {
-    console.error("Email更新錯誤:", error);
-    client.query('ROLLBACK');
+    await client.query('ROLLBACK');
+    logger.error(error)
     return sendError(res, response.server_error, "伺服器錯誤，請稍後再試", 500);
   } finally{
     client.release();
@@ -753,7 +755,7 @@ router.post("/verify-email", verifyToken, async (req, res) => {
     }
   } 
 */
-  console.log("/verify-email收到的資料:", req.body);
+  logger.info('/api/user/verify-email',req.body)
   const { userId } = req.user;
   const { code,email } = req.body;
   const client = await db.connect();
@@ -769,6 +771,7 @@ router.post("/verify-email", verifyToken, async (req, res) => {
     );
     if (result.rowCount === 0) {
       await client.query("ROLLBACK");
+      logger.warn("驗證碼錯誤")
       return sendError(res, response.unfound_verify, "驗證碼錯誤");
     }
 
@@ -776,11 +779,13 @@ router.post("/verify-email", verifyToken, async (req, res) => {
     // 驗證碼是否正確
     if (verification.code !== code) {
       await client.query("ROLLBACK");
+      logger.warn("驗證碼錯誤")
       return sendError(res, response.wrong_verify, "驗證碼錯誤");
     }
     // 驗證是否過期
     if (new Date() > verification.expires_at) {
       await client.query("ROLLBACK");
+      logger.warn("驗證碼已過期")
       return sendError(res, response.expired_verify, "驗證碼已過期");
     }
     // 更新email
@@ -793,15 +798,15 @@ router.post("/verify-email", verifyToken, async (req, res) => {
       "DELETE FROM email_verifications WHERE id = $1",
       [verification.id]
     );
-    client.query('COMMIT');
+    await client.query('COMMIT');
     return res.status(200).json({
       code: response.success,
       msg: "驗證成功",
       data: { email },
     });
   } catch (error) {
-    console.log(error);
-    client.query("ROLLBACK");
+    logger.error(error)
+    await client.query("ROLLBACK");
     return sendError(res, response.server_error, "伺服器錯誤，請稍後再試", 500);
   } finally{
     client.release();
@@ -845,11 +850,12 @@ router.post("/change-phone", verifyToken, async (req, res) => {
     }
   } 
 */
-  console.log("/change-phone收到的資料", req.body);
+  logger.info('/api/user/change-phone',req.body)
   const { userId } = req.user;
   const { phone } = req.body;
   const phoneRegex = /^(09\d{8}|0\d{1,3}-?\d{6,8})$/;
   if (phone !== "" && !phoneRegex.test(phone)) {
+    logger.warn("電話號碼格式錯誤")
     return sendError(res, response.invalid_phone, "電話號碼格式錯誤");
   }
   try {
@@ -864,7 +870,7 @@ router.post("/change-phone", verifyToken, async (req, res) => {
       data: {},
     });
   } catch (error) {
-    console.error("電話更新錯誤:", error);
+    logger.error(error)
     return sendError(res, response.server_error, "伺服器錯誤，請稍後再試", 500);
   }
 });
@@ -906,13 +912,15 @@ router.post("/change-name", verifyToken, async (req, res) => {
     }
   } 
 */
-  console.log("/change-name收到的資料", req.body);
+  logger.info('/api/user/change-name',req.body)
   const { userId } = req.user;
   const { name } = req.body;
   if(!name){
+    logger.warn("缺少必要的資料")
     return sendError(res, response.missing_info, "缺少必要的資料");
   }
   if (name.length > 20) {
+    logger.warn("姓名過長")
     return sendError(res, response.invalid_name, "姓名過長");
   }
   try {
@@ -927,7 +935,7 @@ router.post("/change-name", verifyToken, async (req, res) => {
       data: {},
     });
   } catch (error) {
-    console.error("姓名更新錯誤:", error);
+    logger.error(error)
     return sendError(res, response.server_error, "伺服器錯誤，請稍後再試", 500);
   }
 });
@@ -971,7 +979,7 @@ router.post("/info", verifyToken, async (req, res) => {
     }
   } 
 */
-  console.log("/info", req.body);
+  logger.info('/api/user/info',req.body)
   const { userId } = req.user;
   try {
     const result = await db.query(
@@ -985,7 +993,7 @@ router.post("/info", verifyToken, async (req, res) => {
       data: rows[0],
     });
   } catch (error) {
-    console.error("資料獲取錯誤:", error);
+    logger.error(error)
     return sendError(res, response.server_error, "伺服器錯誤，請稍後再試", 500);
   }
 });
@@ -1052,11 +1060,12 @@ router.post("/points", verifyToken, async (req, res) => {
     }
   } 
 */
-  console.log("/points收到的資料:", req.body);
+  logger.info('/api/user/points',req.body)
   const { userId } = req.user;
   const { page, pageSize } = req.body;
   const offset = (page - 1) * pageSize;
   if (page < 1 || pageSize < 1) {
+    logger.warn("錯誤的分頁資訊")
     return sendError(res, response.invalid_pageInfo, "錯誤的分頁資訊");
   }
   try {
@@ -1085,7 +1094,7 @@ router.post("/points", verifyToken, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("資料獲取錯誤:", error);
+    logger.error(error)
     return sendError(res, response.server_error, "伺服器錯誤，請稍後再試", 500);
   }
 })
@@ -1131,10 +1140,11 @@ router.post("/change-password", verifyToken, async (req, res) => {
     }
   } 
 */
-  console.log("/change-password收到的資料:", req.body);
+  logger.info('/api/user/change-password'.req.body)
   const { userId } = req.user;
   const { oldPassword, newPassword } = req.body;
   if (!oldPassword || !newPassword) {
+    logger.warn("缺少必要的資料")
     return sendError(res, response.missing_info, "缺少必要的資料");
   }
   const client = await db.connect();
@@ -1147,16 +1157,19 @@ router.post("/change-password", verifyToken, async (req, res) => {
     const rows = result.rows
     if (rows.length === 0) {
       await client.query('ROLLBACK');
+      logger.warn("使用者不存在")
       return sendError(res, response.unfound_user, "使用者不存在");
     }
     const isMatch = await bcrypt.compare(oldPassword, rows[0].password);
     if (!isMatch) {
       await client.query('ROLLBACK');
+      logger.warn("舊密碼錯誤")
       return sendError(res, response.wrong_password, "舊密碼錯誤");
     }
     const passwordRegex = /^(?=.*[A-Za-z]).{8,}$/;
     if (!passwordRegex.test(newPassword)) {
       await client.query('ROLLBACK');
+      logger.warn("新密碼格式錯誤")
       return sendError(res, response.invalid_password, "新密碼格式錯誤");
     }
     const updatePassword = await bcrypt.hash(newPassword, 10);
@@ -1172,7 +1185,7 @@ router.post("/change-password", verifyToken, async (req, res) => {
     });
 
   } catch (error) {
-    console.error("密碼更新錯誤:", error);
+    logger.error(error)
     await client.query('ROLLBACK');
     return sendError(res, response.server_error, "伺服器錯誤，請稍後再試", 500);
   } finally {
@@ -1214,9 +1227,10 @@ router.post("/forgot-password", async (req, res) => {
     }
   } 
 */
-  console.log("/forgot-password收到的資料:", req.body);
+  logger.info('/api/user/forget-password',req.body)
   const { account } = req.body;
   if (!account) {
+    logger.warn("缺少必要的資料")
     return sendError(res, response.missing_info, "缺少必要的資料");
   }
   const client = await db.connect();
@@ -1226,6 +1240,7 @@ router.post("/forgot-password", async (req, res) => {
     const rows = result.rows
     if (rows.length === 0) {
       await client.query('ROLLBACK');
+      logger.warn("帳號不存在")
       return sendError(res, response.unfound_account, "帳號不存在");
     }
     // 查詢同一 email 是否存在未過期的驗證碼
@@ -1240,6 +1255,7 @@ router.post("/forgot-password", async (req, res) => {
     if( checkVerifyCode.rows.length > 0) {
       console.log(checkVerifyCode.rows[0],new Date(Date.now()));
       client.query('ROLLBACK');
+      logger.warn("已發送驗證碼，請5分鐘後再試")
       return sendError(res, response.email_conflict, "已發送驗證碼，請5分鐘後再試");
     }
     const expiresAt = dayjs.utc().add(5, 'minute').toDate();
@@ -1277,7 +1293,7 @@ router.post("/forgot-password", async (req, res) => {
       data: { },
     });
   } catch (error) {
-    console.error("忘記密碼錯誤:", error);
+    logger.error(error)
     await client.query('ROLLBACK');
     return sendError(res, response.server_error, "伺服器錯誤，請稍後再試", 500);
   } finally{
@@ -1326,9 +1342,10 @@ router.post("/verify-forgot-password", async (req, res) => {
     }
   } 
 */
-  console.log("/verify-forgot-password收到的資料:", req.body);
+  logger.info('/api/user/verify-forgot-password',req.body)
   const { account, code } = req.body;
   if (!account || !code) {
+    logger.warn("缺少必要的資料")
     return sendError(res, response.missing_info, "缺少必要的資料");
   }
   const client = await db.connect();
@@ -1338,6 +1355,7 @@ router.post("/verify-forgot-password", async (req, res) => {
     const rows = result.rows
     if (rows.length === 0) {
       await client.query('ROLLBACK');
+      logger.warn("帳號不存在")
       return sendError(res, response.unfound_account, "帳號不存在");
     }
     // 查詢驗證碼
@@ -1350,6 +1368,7 @@ router.post("/verify-forgot-password", async (req, res) => {
     );
     if (codeResult.rowCount === 0) {
       await client.query("ROLLBACK");
+      logger.warn("驗證碼錯誤")
       return sendError(res, response.unfound_verify, "驗證碼錯誤");
     }
 
@@ -1357,11 +1376,13 @@ router.post("/verify-forgot-password", async (req, res) => {
     // 驗證碼是否正確
     if (verification.code !== code) {
       await client.query("ROLLBACK");
+      logger.warn("驗證碼錯誤")
       return sendError(res, response.invalid_verify, "驗證碼錯誤");
     }
     // 驗證是否過期
     if (new Date() > verification.expires_at) {
       await client.query("ROLLBACK");
+      logger.warn("驗證碼已過期")
       return sendError(res, response.wrong_verify, "驗證碼已過期");
     }
     // 產生重設密碼token
@@ -1377,7 +1398,7 @@ router.post("/verify-forgot-password", async (req, res) => {
       data: {resetToken},
     });
   } catch (error) {
-    console.log(error);
+    logger.error(error)
     await client.query("ROLLBACK");
     return sendError(res, response.server_error, "伺服器錯誤，請稍後再試", 500);
   } finally{
@@ -1423,9 +1444,10 @@ router.post("/reset-forgot-password", async (req, res) => {
     }
   } 
 */
-  console.log("/reset-forgot-password收到的資料:", req.body);
+  logger.info('/api/user/reset-forgot-password',req.body)
   const { token, password } = req.body;
   if ( !token || !password) {
+    logger.warn("缺少必要的資料")
     return sendError(res, response.missing_info, "缺少必要的資料");
   }
   const client = await db.connect();
@@ -1438,18 +1460,22 @@ router.post("/reset-forgot-password", async (req, res) => {
     } catch (error) {
       if (error.name === "TokenExpiredError") {
         await client.query("ROLLBACK");
+        logger.warn("驗證碼已過期")
         return sendError(res, response.expired_verify, "驗證碼已過期");
       } else if (error.name === "JsonWebTokenError") {
         await client.query("ROLLBACK");
+        logger.warn("驗證碼無效")
         return sendError(res, response.invalid_token, "驗證碼無效");
       } else {
         await client.query("ROLLBACK");
+        logger.warn("驗證失敗，請稍後再試")
         return sendError(res, response.verify_error, "驗證失敗，請稍後再試");
       }
     }
     const passwordRegex = /^(?=.*[A-Za-z]).{8,}$/;
     if (!passwordRegex.test(password)) {
       await client.query('ROLLBACK');
+      logger.warn("新密碼格式錯誤")
       return sendError(res, response.invalid_password, "新密碼格式錯誤");
     }
     const updatePassword = await bcrypt.hash(password, 10);
@@ -1459,6 +1485,7 @@ router.post("/reset-forgot-password", async (req, res) => {
     );
     if (result.rowCount === 0) {
       await client.query('ROLLBACK');
+      logger.warn("找不到該使用者")
       return sendError(res, response.invalid_account, "找不到該使用者");
     }
     await client.query('COMMIT');
@@ -1468,7 +1495,7 @@ router.post("/reset-forgot-password", async (req, res) => {
       data: {},
     });
   } catch (error) {
-    console.log(error);
+    logger.error(error)
     await client.query("ROLLBACK");
     return sendError(res, response.server_error, "伺服器錯誤，請稍後再試", 500);
   } finally{
@@ -1522,23 +1549,28 @@ router.post("/contact",async (req, res) => {
     }
   } 
 */
-  console.log("/contact收到的資料:", req.body);
+  logger.info('/api/user/contact',req.body)
   const { name, phone, email, msg } = req.body;
   if(!name||!phone||!email||!msg){
+    logger.warn("缺少必要的資料")
     return sendError(res, response.missing_info, "缺少必要的資料")
   }
   if(name.length > 20) {
+    logger.warn("姓名過長")
     return sendError(res, response.invalid_name, '姓名過長');
   }
   const phoneRegex = /^(09\d{8}|0\d{1,3}-?\d{6,8})$/;
   if (!phoneRegex.test(phone)) {
+    logger.warn("電話號碼格式錯誤")
     return sendError(res, response.invalid_phone, '電話號碼格式錯誤');
   }
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) {
+    logger.warn("Email格式錯誤")
     return sendError(res, response.invalid_email, 'Email格式錯誤');
   }
   if(msg.length > 100) {
+    logger.warn("訊息過長")
     return sendError(res, response.invalid_infos, '訊息過長');
   }
   try {
@@ -1553,6 +1585,7 @@ router.post("/contact",async (req, res) => {
       data: {},
     });
   } catch (error) {
+    logger.error(error)
     return sendError(res, response.server_error, "伺服器錯誤，請稍後再試", 500);
   }
 })
