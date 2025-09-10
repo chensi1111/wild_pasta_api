@@ -484,7 +484,7 @@ router.post("/reserve", verifyToken, async (req, res) => {
 
     // 查詢總筆數
     const totalResult = await db.query(
-      "SELECT COUNT(*) as total FROM reserves WHERE user_id = $1 status = 'active'",
+      "SELECT COUNT(*) as total FROM reserves WHERE user_id = $1 AND status = 'active'",
       [userId]
     );
     const total = totalResult.rows[0].total;
