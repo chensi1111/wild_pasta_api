@@ -16,7 +16,7 @@ dayjs.extend(utc);
 function sendError(res, code, msg, status = 400) {
   return res.status(status).json({ code, msg });
 }
-const SENSITIVE_FIELDS = ['password', 'oldPassword', 'newPassword', 'token', 'refreshToken', 'resetToken'];
+const SENSITIVE_FIELDS = ['password', 'oldPassword', 'newPassword', 'refreshToken'];
 function sanitizeBody(body) {
   const sanitized = { ...body };
   for (const field of SENSITIVE_FIELDS) {
@@ -74,7 +74,8 @@ router.post("/register", async (req, res) => {
     }
   } 
 */
-  logger.info('/api/user/register',req.body)
+  const sanitizedBody = sanitizeBody(req.body);
+  logger.info('/api/user/register',sanitizedBody)
   let { account, password, email, name } = req.body;
   account = account?.trim();
   email = email?.trim();
@@ -303,7 +304,8 @@ router.post("/refresh", async (req, res) => {
     }
   } 
 */
-  logger.info('/api/user/refresh',req.body)
+  const sanitizedBody = sanitizeBody(req.body);
+  logger.info('/api/user/refresh',sanitizedBody)
   const { refreshToken, userId } = req.body;
   if (!refreshToken) {
     logger.warn("缺少RefreshToken")
@@ -382,7 +384,8 @@ router.post("/logout", async (req, res) => {
     }
   } 
 */
-  logger.info('/api/user/logout',req.body)
+  const sanitizedBody = sanitizeBody(req.body);
+  logger.info('/api/user/logout',sanitizedBody)
   const { refreshToken } = req.body;
   if (!refreshToken) {
     logger.warn("缺少 Refresh Token")
@@ -481,7 +484,7 @@ router.post("/reserve", verifyToken, async (req, res) => {
 
     // 查詢總筆數
     const totalResult = await db.query(
-      "SELECT COUNT(*) as total FROM reserves WHERE user_id = $1",
+      "SELECT COUNT(*) as total FROM reserves WHERE user_id = $1 status = 'active'",
       [userId]
     );
     const total = totalResult.rows[0].total;
@@ -580,7 +583,7 @@ router.post("/takeout", verifyToken, async (req, res) => {
 
     // 查詢總筆數
     const totalResult = await db.query(
-      "SELECT COUNT(*) as total FROM takeouts WHERE user_id = $1",
+      "SELECT COUNT(*) as total FROM takeouts WHERE user_id = $1 AND status = 'active'",
       [userId]
     );
     const total = totalResult.rows[0].total;
@@ -1151,7 +1154,8 @@ router.post("/change-password", verifyToken, async (req, res) => {
     }
   } 
 */
-  logger.info('/api/user/change-password'.req.body)
+  const sanitizedBody = sanitizeBody(req.body);
+  logger.info('/api/user/change-password',sanitizedBody)
   const { userId } = req.user;
   const { oldPassword, newPassword } = req.body;
   if (!oldPassword || !newPassword) {
@@ -1455,7 +1459,8 @@ router.post("/reset-forgot-password", async (req, res) => {
     }
   } 
 */
-  logger.info('/api/user/reset-forgot-password',req.body)
+  const sanitizedBody = sanitizeBody(req.body);
+  logger.info('/api/user/reset-forgot-password',sanitizedBody)
   const { token, password } = req.body;
   if ( !token || !password) {
     logger.warn("缺少必要的資料")
