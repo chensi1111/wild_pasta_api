@@ -6,6 +6,7 @@ const cron = require('node-cron');
 const setTimeSlotsCapacity = require('./utils/setTimeSlotsCapacity');
 const setTakeOutCapacity = require('./utils/setTakeOutCapacity')
 const app = express();
+const port = process.env.PORT || 3000;
 const reserveRouter = require('./routes/reserve'); 
 const userRouter = require('./routes/user');
 const takeoutRouter = require('./routes/takeout')
@@ -73,8 +74,8 @@ app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerFile));
 //     console.error('啟動時 setTimeSlotsCapacity 出錯:', error);
 //   }
 // })();
-app.listen(80, () => {
-  console.log(`Server running`);
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
 });
 // (async () => {
 //   try {

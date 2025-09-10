@@ -16,6 +16,16 @@ dayjs.extend(utc);
 function sendError(res, code, msg, status = 400) {
   return res.status(status).json({ code, msg });
 }
+const SENSITIVE_FIELDS = ['password', 'oldPassword', 'newPassword', 'token', 'refreshToken', 'resetToken'];
+function sanitizeBody(body) {
+  const sanitized = { ...body };
+  for (const field of SENSITIVE_FIELDS) {
+    if (sanitized[field]) {
+      sanitized[field] = '***'; // 遮蔽
+    }
+  }
+  return sanitized;
+}
 
 // 註冊
 router.post("/register", async (req, res) => {
@@ -178,7 +188,8 @@ router.post("/login", async (req, res) => {
     }
   } 
 */
-  logger.info('/api/user/login',req.body)
+  const sanitizedBody = sanitizeBody(req.body);
+  logger.info('/api/user/login',sanitizedBody)
   let { account, password } = req.body;
   account = account?.trim();
 
