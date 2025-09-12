@@ -25,7 +25,7 @@ cron.schedule('0 0 * * *', async () => {
   }
 });
 app.use(cors({
-    origin: '*' ,
+    origin: process.env.BASE_URL ,
     methods: ['GET', 'POST', 'OPTIONS'],
   }));
 app.use(express.json()); 

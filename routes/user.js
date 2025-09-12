@@ -350,7 +350,7 @@ router.post("/refresh", async (req, res) => {
   }
 });
 // 登出
-router.post("/logout", async (req, res) => {
+router.post("/logout",verifyToken, async (req, res) => {
   /* 	
   #swagger.tags = ['user']
   #swagger.summary = '登出' 

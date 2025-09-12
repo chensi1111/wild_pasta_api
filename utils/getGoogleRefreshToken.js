@@ -19,7 +19,7 @@ const oAuth2Client = new google.auth.OAuth2(
 // console.log("請用瀏覽器開啟此網址並取得授權碼：", authUrl);
 
 // 拿到授權碼後，執行以下來換取 token
-const code = '4/0AVMBsJjTUnE9YzY4akHhItdcS3raJwaARWU6fmJDWLAXsQFPjlWDLKlKgj87lk4Ugjcbww&scope=https://mail.google.com/'
+const code = '4/0AVMBsJgxZ0wOIbOU561opKHJUiKk-fn9PQh8dXR95EhvKE0uT2dsBZAkfq5CHYZMr7rEtA&scope=https://mail.google.com/'
 async function getToken(code) {
   const { tokens } = await oAuth2Client.getToken(code);
   console.log("Access Token:", tokens.access_token);
