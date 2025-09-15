@@ -24,10 +24,17 @@ cron.schedule('0 0 * * *', async () => {
     console.error('執行排程時出錯:', err);
   }
 });
-app.use(cors({
-    origin: process.env.BASE_URL ,
-    methods: ['GET', 'POST', 'OPTIONS'],
-  }));
+const corsOptions = {
+  origin: process.env.BASE_URL,
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  // credentials: true
+};
+
+app.use(cors(corsOptions));
+
+// 全域處理所有 OPTIONS 預檢請求
+app.options('*', cors(corsOptions));
 app.use(express.json()); 
 
 // Logging middleware
