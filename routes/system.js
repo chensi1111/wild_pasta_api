@@ -1,8 +1,19 @@
 const express = require('express');
+const { google } = require("googleapis");
+require('dotenv').config()
 const logger=require('../logger');
 const router = express.Router();
 const db =require('../db')
 const response=require('../utils/response_codes')
+const CLIENT_ID = process.env.CLIENT_ID;
+const CLIENT_SECRET = process.env.CLIENT_SECRET;
+const REDIRECT_URI = process.env.REDIRECT_URI
+
+const oAuth2Client = new google.auth.OAuth2(
+  CLIENT_ID,
+  CLIENT_SECRET,
+  REDIRECT_URI
+);
 
 function sendError(res, code, msg, status = 400) {
   return res.status(status).json({ code, msg });
@@ -142,5 +153,104 @@ router.post("/pin", async (req, res) => {
       msg: '更新成功',
       data: {}
     });
+});
+// 取得gmail authUrl
+router.post("/gmail-auth", async (req, res) => {
+  /* 	
+  #swagger.tags = ['system']
+  #swagger.summary = '取得gmail authUrl' 
+
+  #swagger.responses[200] = {
+    description: "成功",
+    content: {
+        "application/json": {
+            example: {
+                code: "000",
+                msg: "成功",
+                data: {
+                    auth:'url'
+                }
+            }
+        }
+    }
+  } 
+*/
+  logger.info("/api/system/gmail-auth");
+  try {
+    
+    const authUrl = oAuth2Client.generateAuthUrl({
+      access_type: "offline",
+      scope: ["https://mail.google.com/"],
+    });
+
+    res.status(200).json({
+      code: response.success,
+      msg: '查詢成功',
+      data: {
+        authUrl
+    }
+    });
+
+  } catch (error) {
+    logger.error(error)
+    return sendError(res, response.server_error, '伺服器錯誤，請稍後再試', 500);
+  }
+});
+// 換取google token
+router.post("/gmail-token", async (req, res) => {
+  /* 	
+  #swagger.tags = ['system']
+  #swagger.summary = '換取google token'
+  
+  #swagger.requestBody = {
+    required: true,
+      content: {
+        "application/json": {
+            schema: {
+                type: "object",
+                required: ["code"],
+                properties: {
+                    code: {
+                      type: "string",
+                      example: "1234"
+                    },
+                }
+            }
+        }
+    }
+  }
+
+  #swagger.responses[200] = {
+    description: "成功",
+    content: {
+        "application/json": {
+            example: {
+                code: "000",
+                msg: "成功",
+                data: {
+                    refresh_token:'token'
+                }
+            }
+        }
+    }
+  } 
+*/
+  logger.info("/api/system/gmail-token");
+  const { code } = req.body;
+  try {
+    const { tokens } = await oAuth2Client.getToken(code);
+    oAuth2Client.setCredentials(tokens);
+
+    res.status(200).json({
+      code: response.success,
+      msg: '查詢成功',
+      data: {
+        refresh_token:tokens.refresh_token
+    }
+    });
+  } catch (error) {
+    logger.error(error)
+    return sendError(res, response.server_error, '伺服器錯誤，請稍後再試', 500);
+  }
 });
 module.exports = router;
