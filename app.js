@@ -2,28 +2,29 @@ const cors = require('cors');
 const express = require('express');
 const logger= require('./logger');
 const UAParser = require("ua-parser-js");
-const cron = require('node-cron');
-const setTimeSlotsCapacity = require('./utils/setTimeSlotsCapacity');
-const setTakeOutCapacity = require('./utils/setTakeOutCapacity')
+// const cron = require('node-cron');
+// const setTimeSlotsCapacity = require('./utils/setTimeSlotsCapacity');
+// const setTakeOutCapacity = require('./utils/setTakeOutCapacity')
 const app = express();
 const port = process.env.PORT || 3000;
 const reserveRouter = require('./routes/reserve'); 
 const userRouter = require('./routes/user');
 const takeoutRouter = require('./routes/takeout')
 const errorRouter = require('./routes/error')
+const systemRouter = require('./routes/system')
 const swaggerUi = require("swagger-ui-express");
 const swaggerFile = require("./swagger-output.json");
 // 排定每日0:00 執行
-cron.schedule('0 0 * * *', async () => {
-  try {
-    await setTimeSlotsCapacity();
-    await setTakeOutCapacity();
-    console.log('完成時段容量補足');
-    console.log(Date.now(),'目前時間');
-  } catch (err) {
-    console.error('執行排程時出錯:', err);
-  }
-});
+// cron.schedule('0 0 * * *', async () => {
+//   try {
+//     await setTimeSlotsCapacity();
+//     await setTakeOutCapacity();
+//     console.log('完成時段容量補足');
+//     console.log(Date.now(),'目前時間');
+//   } catch (err) {
+//     console.error('執行排程時出錯:', err);
+//   }
+// });
 const corsOptions = {
   origin: process.env.BASE_URL,
   methods: ['GET', 'POST', 'OPTIONS'],
@@ -32,9 +33,6 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-
-// 全域處理所有 OPTIONS 預檢請求
-app.options('*', cors(corsOptions));
 app.use(express.json()); 
 
 // Logging middleware
@@ -71,23 +69,10 @@ app.use('/api/reserve', reserveRouter);
 app.use('/api/user', userRouter);
 app.use('/api/takeout', takeoutRouter);
 app.use('/api/error', errorRouter);
+app.use('/api/system', systemRouter);
 // Swagger UI 路由
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerFile));
 
-// (async () => {
-//   try {
-//     await setTimeSlotsCapacity();
-//   } catch (error) {
-//     console.error('啟動時 setTimeSlotsCapacity 出錯:', error);
-//   }
-// })();
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
-// (async () => {
-//   try {
-//     await setTakeOutCapacity();
-//   } catch (error) {
-//     console.error('啟動時 setTakeOutCapacity 出錯:', error);
-//   }
-// })();

@@ -26,6 +26,9 @@ const doc = {
     {
       name: "takeout",
     },
+    {
+      name: "system"
+    }
   ],
   components: {
     securitySchemes: {
