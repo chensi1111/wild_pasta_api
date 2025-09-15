@@ -309,7 +309,75 @@ router.post("/order",async (req, res) => {
     [userId, ord_number, ord_time, point, ord_time]
     )
   }
-
+  await sendEmail(
+      email,
+      "Wild Pasta 外帶下單成功",
+      `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #fafafa; border-radius: 8px; border: 1px solid #eaeaea;">
+        <div style="text-align: center; padding-bottom: 10px; border-bottom: 2px solid #333;">
+          <h1 style="color: #333; margin: 0; font-size: 28px;">Wild Pasta</h1>
+          <p style="color: #666; margin: 4px 0 0;">感謝您的訂單！</p>
+        </div>
+    
+        <div style="padding: 20px 0;">
+          <h2 style="color: #333; font-size: 20px;">訂單資訊</h2>
+          <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+            <tr>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd;">訂單編號</td>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd; font-weight: bold; color: #333;">${ord_number}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd;">下單時間</td>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd; color: #333;">${formatDate(ord_time)}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd;">姓名</td>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd; color: #333;">${name}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd;">取餐日期</td>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd; color: #333;">${date}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd;">取餐時間</td>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd; color: #333;">${end_time}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd;white-space: nowrap;">訂單內容</td>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd; color: #333;word-break: break-word;max-width: 400px;">${getProductList(list)}</td>
+            </tr>
+          </table>
+        </div>
+    
+        <div style="margin-top: 15px; padding: 15px; background-color:rgb(255, 255, 255); border-radius: 6px; border: 1px solid rgb(230, 230, 230);">
+          <p style="margin: 0; color: #333; font-size: 16px;">
+            小計：<b>${price}</b> 元<br>
+            折扣：<b>${discount}</b> 元<br>
+            總計：<b style="font-size: 18px; color: #d9534f;">${price - discount}</b> 元<br>
+            ${point ? `獲得點數：<b>${point}</b>` : ""}
+          </p>
+        </div>
+    
+        ${
+          remark
+            ? `
+          <div style="margin-top: 15px; padding: 12px; background-color: rgb(255, 255, 255); border-radius: 6px; border: 1px solid rgb(230, 230, 230);">
+            <p style="margin: 0; color: #333;">備註：${remark}</p>
+          </div>
+          `
+            : ""
+        }
+        <div style="margin-top: 15px; padding: 12px; background-color: rgb(255, 255, 255); border-radius: 6px; border: 1px solid rgb(230, 230, 230);">
+            <a href="http://localhost:5184/cancel-order?TKOToken=${cancel_token}" style="margin: 0; color: #333">點擊取消訂單</a>
+            <p style="margin: 5px 0 0 0; color: #d9534f;font-size:12px">取餐時間前90分鐘不可取消</p>
+          </div>
+        <div style="margin-top: 25px; text-align: center; padding-top: 10px; border-top: 1px solid #eaeaea;">
+          <p style="margin: 0; font-size: 14px; color: #999;">感謝您選擇 Wild Pasta</p>
+          <p style="margin: 4px 0 0; font-size: 14px; color: #999;">如有問題，請聯絡我們：<a href="mailto:chensiProjectTest4832@gmail.com" style="color: #333; text-decoration: none;">chensiProjectTest4832@gmail.com</a></p>
+        </div>
+      </div>
+      `
+    );
   await client.query('COMMIT');
 
   const ordData={
@@ -320,81 +388,6 @@ router.post("/order",async (req, res) => {
     msg: '下單成功',
     data: ordData,
   });
-  (async () => {
-    try {
-     await sendEmail(
-        email,
-        "Wild Pasta 外帶下單成功",
-       `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #fafafa; border-radius: 8px; border: 1px solid #eaeaea;">
-          <div style="text-align: center; padding-bottom: 10px; border-bottom: 2px solid #333;">
-            <h1 style="color: #333; margin: 0; font-size: 28px;">Wild Pasta</h1>
-            <p style="color: #666; margin: 4px 0 0;">感謝您的訂單！</p>
-         </div>
-      
-         <div style="padding: 20px 0;">
-            <h2 style="color: #333; font-size: 20px;">訂單資訊</h2>
-           <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
-             <tr>
-               <td style="padding: 8px; border-bottom: 1px solid #ddd;">訂單編號</td>
-                <td style="padding: 8px; border-bottom: 1px solid #ddd; font-weight: bold; color: #333;">${ord_number}</td>
-             </tr>
-              <tr>
-               <td style="padding: 8px; border-bottom: 1px solid #ddd;">下單時間</td>
-              <td style="padding: 8px; border-bottom: 1px solid #ddd; color: #333;">${formatDate(ord_time)}</td>
-                 </tr>
-             <tr>
-               <td style="padding: 8px; border-bottom: 1px solid #ddd;">姓名</td>
-               <td style="padding: 8px; border-bottom: 1px solid #ddd; color: #333;">${name}</td>
-              </tr>
-             <tr>
-                <td style="padding: 8px; border-bottom: 1px solid #ddd;">取餐日期</td>
-               <td style="padding: 8px; border-bottom: 1px solid #ddd; color: #333;">${date}</td>
-              </tr>
-              <tr>
-                    <td style="padding: 8px; border-bottom: 1px solid #ddd;">取餐時間</td>
-                <td style="padding: 8px; border-bottom: 1px solid #ddd; color: #333;">${end_time}</td>
-              </tr>
-              <tr>
-                <td style="padding: 8px; border-bottom: 1px solid #ddd;white-space: nowrap;">訂單內容</td>
-               <td style="padding: 8px; border-bottom: 1px solid #ddd; color: #333;word-break: break-word;max-width: 400px;">${getProductList(list)}</td>
-              </tr>
-            </table>
-          </div>
-      
-          <div style="margin-top: 15px; padding: 15px; background-color:rgb(255, 255, 255); border-radius: 6px; border: 1px solid rgb(230, 230, 230);">
-            <p style="margin: 0; color: #333; font-size: 16px;">
-             小計：<b>${price}</b> 元<br>
-             折扣：<b>${discount}</b> 元<br>
-             總計：<b style="font-size: 18px; color: #d9534f;">${price - discount}</b> 元<br>
-              ${point ? `獲得點數：<b>${point}</b>` : ""}
-            </p>
-         </div>
-      
-          ${
-            remark
-              ? `
-                <div style="margin-top: 15px; padding: 12px; background-color: rgb(255, 255, 255); border-radius: 6px; border: 1px solid rgb(230, 230, 230);">
-             <p style="margin: 0; color: #333;">備註：${remark}</p>
-           </div>
-            `
-             : ""
-         }
-         <div style="margin-top: 15px; padding: 12px; background-color: rgb(255, 255, 255); border-radius: 6px; border: 1px solid rgb(230, 230, 230);">
-             <a href="http://localhost:5184/cancel-order?TKOToken=${cancel_token}" style="margin: 0; color: #333">點擊取消訂單</a>
-             <p style="margin: 5px 0 0 0; color: #d9534f;font-size:12px">取餐時間前90分鐘不可取消</p>
-               </div>
-         <div style="margin-top: 25px; text-align: center; padding-top: 10px; border-top: 1px solid #eaeaea;">
-           <p style="margin: 0; font-size: 14px; color: #999;">感謝您選擇 Wild Pasta</p>
-           <p style="margin: 4px 0 0; font-size: 14px; color: #999;">如有問題，請聯絡我們：<a href="mailto:chensiProjectTest4832@gmail.com" style="color: #333; text-decoration: none;">chensiProjectTest4832@gmail.com</a></p>
-         </div>
-       </div>
-       `
-      );
-    } catch (err) {
-      logger.error("Email 發送失敗:", err);
-    }
-  })();
 } catch (error) {
   await client.query('ROLLBACK');
   logger.error(error)
