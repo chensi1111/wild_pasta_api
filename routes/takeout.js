@@ -634,26 +634,4 @@ router.post('/cancel-email', async (req, res) => {
     client.release();
   }
 });
-router.post('/test',async (req, res) => {
-  logger.info('/api/takeout/test')
-  const email = 'chensitest4831@gmail.com'
-  try {
-      await sendEmail(
-      email,
-      "Wild Pasta 外帶下單成功",
-      `
-      <div>測試</div>
-      `
-    );
-    res.status(200).json({
-    code: response.success,
-    msg: '下單成功',
-    data: ""
-  });
-  logger.info('成功')
-  } catch (error) {
-    logger.error(error)
-  }
-
-})
 module.exports = router;

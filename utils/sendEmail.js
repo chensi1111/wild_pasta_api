@@ -1,4 +1,3 @@
-const nodemailer = require("nodemailer");
 const { google } = require("googleapis");
 
 const CLIENT_ID = process.env.CLIENT_ID;
@@ -13,15 +12,20 @@ const oAuth2Client = new google.auth.OAuth2(
 );
 
 oAuth2Client.setCredentials({ refresh_token: REFRESH_TOKEN });
+function encodeRFC2047(str) {
+  return `=?UTF-8?B?${Buffer.from(str).toString('base64')}?=`;
+}
 
 async function sendMail(to, subject, html) {
   const gmail = google.gmail({ version: "v1", auth: oAuth2Client });
+  // 編碼中文標題
+  const encodedSubject = encodeRFC2047(subject);
 
   // 組成 raw email
   const emailLines = [];
   emailLines.push(`From: WildPasta <chensiProjectTest4832@gmail.com>`);
   emailLines.push(`To: ${to}`);
-  emailLines.push(`Subject: ${subject}`);
+  emailLines.push(`Subject: ${encodedSubject}`);
   emailLines.push("Content-Type: text/html; charset=utf-8");
   emailLines.push("");
   emailLines.push(html);

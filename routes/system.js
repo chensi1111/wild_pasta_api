@@ -176,7 +176,6 @@ router.post("/gmail-auth", async (req, res) => {
   } 
 */
   logger.info("/api/system/gmail-auth");
-  console.log(CLIENT_ID,CLIENT_SECRET,REDIRECT_URI,'TEST000')
   try {
     
     const authUrl = oAuth2Client.generateAuthUrl({
@@ -186,7 +185,7 @@ router.post("/gmail-auth", async (req, res) => {
 
     res.status(200).json({
       code: response.success,
-      msg: '查詢成功',
+      msg: '成功',
       data: {
         authUrl
     }
@@ -238,16 +237,14 @@ router.post("/gmail-token", async (req, res) => {
 */
   logger.info("/api/system/gmail-token",req.body);
   const { code } = req.body;
-  console.log(CLIENT_ID,CLIENT_SECRET,REDIRECT_URI,'TEST111')
   try {
     let decodedCode = decodeURIComponent(code);
-    console.log(decodedCode,'newCode')
     const { tokens } = await oAuth2Client.getToken(decodedCode);
     oAuth2Client.setCredentials(tokens);
 
     res.status(200).json({
       code: response.success,
-      msg: '查詢成功',
+      msg: '成功',
       data: {
         refresh_token:tokens.refresh_token
     }
