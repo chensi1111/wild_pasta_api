@@ -176,6 +176,7 @@ router.post("/gmail-auth", async (req, res) => {
   } 
 */
   logger.info("/api/system/gmail-auth");
+  console.log(CLIENT_ID,CLIENT_SECRET,REDIRECT_URI,'TEST000')
   try {
     
     const authUrl = oAuth2Client.generateAuthUrl({
@@ -235,8 +236,9 @@ router.post("/gmail-token", async (req, res) => {
     }
   } 
 */
-  logger.info("/api/system/gmail-token");
+  logger.info("/api/system/gmail-token",req.body);
   const { code } = req.body;
+  console.log(CLIENT_ID,CLIENT_SECRET,REDIRECT_URI,'TEST111')
   try {
     const { tokens } = await oAuth2Client.getToken(code);
     oAuth2Client.setCredentials(tokens);
