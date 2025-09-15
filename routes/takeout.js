@@ -636,6 +636,7 @@ router.post('/cancel-email', async (req, res) => {
 });
 router.post('/test',async (req, res) => {
   logger.info('/api/takeout/test')
+  const email = 'chensitest4831@gmail.com'
   try {
       await sendEmail(
       email,
@@ -647,7 +648,7 @@ router.post('/test',async (req, res) => {
     res.status(200).json({
     code: response.success,
     msg: '下單成功',
-    data: ordData,
+    data: ""
   });
   logger.info('成功')
   } catch (error) {
