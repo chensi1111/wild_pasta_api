@@ -1,6 +1,5 @@
 const nodemailer = require("nodemailer");
 const { google } = require("googleapis");
-const logger = require('../logger')
 
 const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
@@ -16,29 +15,32 @@ const oAuth2Client = new google.auth.OAuth2(
 oAuth2Client.setCredentials({ refresh_token: REFRESH_TOKEN });
 
 async function sendMail(to, subject, html) {
-  const accessToken = await oAuth2Client.getAccessToken();
-  console.log(CLIENT_ID,CLIENT_SECRET,REDIRECT_URI,REFRESH_TOKEN,accessToken,'debug')
+  const gmail = google.gmail({ version: "v1", auth: oAuth2Client });
 
-  const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      type: "OAuth2",
-      user: "chensiProjectTest4832@gmail.com",
-      clientId: CLIENT_ID,
-      clientSecret: CLIENT_SECRET,
-      refreshToken: REFRESH_TOKEN,
-      accessToken: accessToken.token,
+  // 組成 raw email
+  const emailLines = [];
+  emailLines.push(`From: WildPasta <chensiProjectTest4832@gmail.com>`);
+  emailLines.push(`To: ${to}`);
+  emailLines.push(`Subject: ${subject}`);
+  emailLines.push("Content-Type: text/html; charset=utf-8");
+  emailLines.push("");
+  emailLines.push(html);
+
+  const email = emailLines.join("\n");
+
+  const encodedEmail = Buffer.from(email)
+    .toString("base64")           // Gmail API 要求 base64
+    .replace(/\+/g, "-")          // URL-safe
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");          // 去掉尾端 padding
+
+  const res = await gmail.users.messages.send({
+    userId: "me",
+    requestBody: {
+      raw: encodedEmail,
     },
   });
 
-  const mailOptions = {
-    from: "WildPasta <chensiProjectTest4832@gmail.com>",
-    to,
-    subject,
-    html,
-  };
-
-  const result = await transporter.sendMail(mailOptions);
-  console.log("寄信成功:", result.response);
+  console.log("寄信成功:", res.data);
 }
 module.exports = sendMail;
