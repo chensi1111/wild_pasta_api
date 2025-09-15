@@ -240,9 +240,9 @@ router.post("/gmail-token", async (req, res) => {
   const { code } = req.body;
   console.log(CLIENT_ID,CLIENT_SECRET,REDIRECT_URI,'TEST111')
   try {
-    code = decodeURIComponent(code);
-    console.log(code,'newCode')
-    const { tokens } = await oAuth2Client.getToken(code);
+    let decodedCode = decodeURIComponent(code);
+    console.log(decodedCode,'newCode')
+    const { tokens } = await oAuth2Client.getToken(decodedCode);
     oAuth2Client.setCredentials(tokens);
 
     res.status(200).json({
