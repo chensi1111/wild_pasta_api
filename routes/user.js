@@ -6,7 +6,7 @@ const db = require("../db");
 const { v4: uuidv4 } = require("uuid");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const { generateTokens, getTokens,generateResetToken } = require("../utils/token");
+const { generateTokens,generateResetToken } = require("../utils/token");
 const verifyToken = require("../middleware/auth");
 const sendEmail = require("../utils/sendEmail");
 const dayjs = require("dayjs");
@@ -161,7 +161,15 @@ router.post("/login", async (req, res) => {
                     password: {
                         type: "string",
                         example: "aa12345678"
-                    }
+                    },
+                    deviceId: {
+                        type: "string",
+                        example: "30015628-3afa-4878-aad2-bf2e59140a57"
+                    },
+                    deviceName: {
+                        type: "string",
+                        example: "Windows - Chrome"
+                    },
                 }
             }
         }
@@ -191,10 +199,10 @@ router.post("/login", async (req, res) => {
 */
   const sanitizedBody = sanitizeBody(req.body);
   logger.info('/api/user/login',sanitizedBody)
-  let { account, password } = req.body;
+  let { account, password, deviceId, deviceName } = req.body;
   account = account?.trim();
 
-  if (!account || !password) {
+  if (!account || !password || !deviceId || !deviceName) {
     logger.warn("缺少必要的資料")
     return sendError(res, response.missing_info, "缺少必要的資料");
   }
@@ -230,18 +238,17 @@ router.post("/login", async (req, res) => {
     const payload = {
       userId: user.user_id,
     };
-    // 刪除舊的refreshToken
-    await db.query("DELETE FROM refresh_tokens WHERE user_id = $1", [
-      user.user_id,
-    ]);
     const tokens = generateTokens(payload);
     // 從token中獲取過期時間
     const decoded = jwt.decode(tokens.refreshToken);
     const expiresAt = new Date(decoded.exp * 1000);
     // 將refreshToken存進資料庫
-    await db.query(
-      "INSERT INTO refresh_tokens (token, user_id, expires_at) VALUES ($1, $2, $3)",
-      [tokens.refreshToken, user.user_id, expiresAt]
+     await db.query(
+      `INSERT INTO refresh_tokens (token, user_id, device_id, device_name, last_used_at, expires_at)
+       VALUES ($1, $2, $3, $4, NOW(), $5)
+       ON CONFLICT (user_id, device_id)
+       DO UPDATE SET token = $1, device_name = $4, last_used_at = NOW(), expires_at = $5`,
+      [tokens.refreshToken, user.user_id, deviceId, deviceName, expiresAt]
     );
     res.status(200).json({
       code: response.success,
@@ -306,7 +313,7 @@ router.post("/refresh", async (req, res) => {
 */
   const sanitizedBody = sanitizeBody(req.body);
   logger.info('/api/user/refresh',sanitizedBody)
-  const { refreshToken, userId } = req.body;
+  const { refreshToken } = req.body;
   if (!refreshToken) {
     logger.warn("缺少RefreshToken")
     return sendError(res,response.missing_info,"缺少RefreshToken");
@@ -323,18 +330,26 @@ router.post("/refresh", async (req, res) => {
       logger.warn("Refresh Token 無效")
       return sendError(res,response.invalid_refreshToken,"Refresh Token 無效");
     }
-    const tokens = getTokens(refreshToken);
-    // 從資料庫中移除 refreshToken
-    await db.query("DELETE FROM refresh_tokens WHERE token = $1", [
-      refreshToken,
-    ]);
+    // 驗證 JWT 是否有效及是否過期
+    let decoded;
+    try {
+      decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+    } catch (err) {
+      logger.warn("Refresh Token 過期");
+      await db.query("DELETE FROM refresh_tokens WHERE token = $1", [refreshToken]);
+      return sendError(res, response.invalid_refreshToken, "Refresh Token 過期");
+    }
+    const userId = decoded.userId;
+    const tokens = generateTokens({ userId })
     // 從新的token中獲取過期時間
-    const decoded = jwt.decode(tokens.refreshToken);
-    const expiresAt = new Date(decoded.exp * 1000);
-    // 將refreshToken存進資料庫
+    const newDecoded = jwt.decode(tokens.refreshToken);
+    const expiresAt = new Date(newDecoded.exp * 1000);
+    // 更新token
     await db.query(
-      "INSERT INTO refresh_tokens (token, user_id, expires_at) VALUES ($1, $2, $3)",
-      [tokens.refreshToken, userId, expiresAt]
+      `UPDATE refresh_tokens
+       SET token = $1, last_used_at = NOW(), expires_at = $2
+       WHERE token = $3`,
+      [tokens.refreshToken, expiresAt, refreshToken]
     );
     res.status(200).json({
       code: response.success,

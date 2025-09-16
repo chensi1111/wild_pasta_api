@@ -37,6 +37,7 @@ app.use((req, res, next) => {
     let level = "info";
     if (res.statusCode >= 500) level = "error";
     else if (res.statusCode >= 400) level = "warn";
+    const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress;
 
     logger.log({
       level,
@@ -44,7 +45,7 @@ app.use((req, res, next) => {
       userId,
       statusCode: res.statusCode,
       duration: `${duration}ms`,
-      ip: req.ip,
+      ip,
       userAgent: { deviceType, browserName, browserVersion }
     });
   });
