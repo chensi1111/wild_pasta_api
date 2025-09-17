@@ -2,7 +2,7 @@ const logger = require('../logger')
 const response = require("../utils/response_codes");
 const jwt = require('jsonwebtoken');
 const SECRET_KEY = process.env.JWT_ACCESS_SECRET;
-const API_KEY = process.env.JWT_API_SECRET
+const API_KEY = process.env.API_SECRET
 function sendError(res, code, msg, status = 400) {
   return res.status(status).json({ code, msg });
 }
