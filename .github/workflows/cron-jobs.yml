@@ -1,0 +1,24 @@
+name: Daily API Jobs
+
+on:
+  schedule:
+    - cron: '0 16 * * *'
+  workflow_dispatch: # 手動觸發
+
+jobs:
+  run-cron-jobs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Call takeout API
+        run: |
+          curl -X POST "$API_BASE_URL/api/system/takeout" \
+            -H "x-api-token: $API_TOKEN"
+
+      - name: Call reserve API
+        run: |
+          curl -X POST "$API_BASE_URL/api/system/reserve" \
+            -H "x-api-token: $API_TOKEN"
+        env:
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+          API_TOKEN: ${{ secrets.API_TOKEN }}

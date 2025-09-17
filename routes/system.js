@@ -1,6 +1,7 @@
 const express = require('express');
 const { google } = require("googleapis");
 require('dotenv').config()
+const {verifyAPI} = require("../middleware/auth");
 const logger=require('../logger');
 const router = express.Router();
 const db =require('../db')
@@ -20,10 +21,13 @@ function sendError(res, code, msg, status = 400) {
 }
 
 // 設定外帶容量設置
-router.post("/takeout", async (req, res) => {
+router.post("/takeout",verifyAPI, async (req, res) => {
   /* 	
   #swagger.tags = ['system']
-  #swagger.summary = '設定外帶容量設置' 
+  #swagger.summary = '設定外帶容量設置'
+  #swagger.security = [{
+    "ApiTokenAuth": []
+  }] 
 
   #swagger.responses[200] = {
     description: "成功",
@@ -69,10 +73,13 @@ router.post("/takeout", async (req, res) => {
 });
 
 // 設定訂位容量
-router.post("/reserve", async (req, res) => {
+router.post("/reserve",verifyAPI, async (req, res) => {
   /* 	
   #swagger.tags = ['system']
-  #swagger.summary = '設定訂位容量' 
+  #swagger.summary = '設定訂位容量'
+  #swagger.security = [{
+    "ApiTokenAuth": []
+  }]  
 
   #swagger.responses[200] = {
     description: "成功",
@@ -155,10 +162,13 @@ router.post("/pin", async (req, res) => {
     });
 });
 // 取得gmail authUrl
-router.post("/gmail-auth", async (req, res) => {
+router.post("/gmail-auth",verifyAPI, async (req, res) => {
   /* 	
   #swagger.tags = ['system']
-  #swagger.summary = '取得gmail authUrl' 
+  #swagger.summary = '取得gmail authUrl'
+  #swagger.security = [{
+    "ApiTokenAuth": []
+  }]  
 
   #swagger.responses[200] = {
     description: "成功",
@@ -197,10 +207,13 @@ router.post("/gmail-auth", async (req, res) => {
   }
 });
 // 換取google token
-router.post("/gmail-token", async (req, res) => {
+router.post("/gmail-token",verifyAPI, async (req, res) => {
   /* 	
   #swagger.tags = ['system']
   #swagger.summary = '換取google token'
+  #swagger.security = [{
+    "ApiTokenAuth": []
+  }] 
   
   #swagger.requestBody = {
     required: true,
