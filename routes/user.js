@@ -1620,4 +1620,109 @@ router.post("/contact",async (req, res) => {
     return sendError(res, response.server_error, "伺服器錯誤，請稍後再試", 500);
   }
 })
+// 已登入帳號
+router.post("/accounts", verifyToken, async (req, res) => {
+  /* 	
+  #swagger.tags = ['user']
+  #swagger.summary = '已登入帳號'
+  #swagger.security = [{
+    "BearerAuth": []
+  }] 
+  #swagger.responses[200] = {
+    description: "成功",
+    content: {
+        "application/json": {
+            example: {
+                code: "000",
+                msg: "成功",
+                data: [{
+                  device_name:"Windows - Chrome",
+                  created_at:"2025-09-16 07:46:46.436",
+                  last_used_at:"2025-09-16 07:46:46.436"
+                }]
+            }
+        }
+    }
+  } 
+*/
+  logger.info('/api/user/accounts',req.body)
+  const { userId } = req.user;
+  try {
+    const result = await db.query(
+      "SELECT id,created_at,last_used_at,device_name,device_id FROM refresh_tokens WHERE user_id = $1 ORDER BY last_used_at DESC",
+      [userId]
+    );
+    const rows = result.rows
+    return res.status(200).json({
+      code: response.success,
+      msg: "資料獲取成功",
+      data: rows,
+    });
+  } catch (error) {
+    logger.error(error)
+    return sendError(res, response.server_error, "伺服器錯誤，請稍後再試", 500);
+  }
+})
+// 登出其他帳號
+router.post("/kick-account",verifyToken, async (req, res) => {
+  /* 	
+  #swagger.tags = ['user']
+  #swagger.summary = '登出其他帳號' 
+  #swagger.requestBody = {
+    required: true,
+      content: {
+        "application/json": {
+            schema: {
+                type: "object",
+                required: ["deviceId"],
+                properties: {
+                    deviceId: {
+                        type: "string",
+                        example: "432de832-a6f2-40c3-aeea-fd1b57216134"
+                    }
+                }
+            }
+        }
+    }
+  }
+  #swagger.responses[200] = {
+    description: "成功",
+    content: {
+        "application/json": {
+            example: {
+                code: "000",
+                msg: "成功",
+                data: ""
+            }
+        }
+    }
+  } 
+*/
+
+  logger.info('/api/user/kick-account',req.body)
+  const { deviceId } = req.body;
+  const { userId } = req.user;
+  if (!deviceId) {
+    logger.warn("缺少 DeviceId")
+    return sendError(res,response.missing_info,"缺少 DeviceId");
+  }
+
+  try {
+    const result = await db.query(
+      "DELETE FROM refresh_tokens WHERE device_id = $1 AND user_id = $2 RETURNING id",
+      [deviceId, userId]
+    );
+    
+    if (result.rowCount === 0) {
+      return sendError(res, response.invalid_device, "找不到該裝置或已登出");
+    }
+    return res.status(200).json({
+      code: response.success,
+      msg: "成功登出",
+    });
+  } catch (error) {
+    logger.error(error)
+    return sendError(res, response.server_error, "伺服器錯誤，請稍後再試", 500);
+  }
+});
 module.exports = router;

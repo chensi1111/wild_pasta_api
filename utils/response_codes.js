@@ -19,6 +19,7 @@ const responseCodes = {
   "invalid_allergy": "017",
   "invalid_token": "018",
   "invalid_infos":"019",
+  "invalid_device":"020",
   "account_conflict": "101",
   "email_conflict": "102",
   "verify_conflict": "103",
