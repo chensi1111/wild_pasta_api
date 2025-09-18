@@ -2,8 +2,8 @@ name: Daily API Jobs
 
 on:
   schedule:
-    - cron: '0 16 * * *' 
-  workflow_dispatch: # 手動觸發
+    - cron: '0 16 * * *'   # UTC 16:00 = 台灣時間 00:00
+  workflow_dispatch:       # 手動觸發
 
 jobs:
   run-cron-jobs:
@@ -14,12 +14,29 @@ jobs:
       API_TOKEN: ${{ secrets.API_TOKEN }}
 
     steps:
+      - name: Wake up Render (pin API)
+        run: |
+          echo "Waking up Render service..."
+          # 嘗試 10 次，每次間隔 15 秒，直到成功回應 200
+          for i in {1..10}; do
+            status=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$API_BASE_URL/api/system/pin")
+            if [ "$status" -eq 200 ]; then
+              echo "Service is awake!"
+              break
+            else
+              echo "Attempt $i: Service not ready (status $status). Retrying in 15s..."
+              sleep 15
+            fi
+          done
+
       - name: Call takeout API
         run: |
-          curl -X POST "$API_BASE_URL/api/system/takeout" \
+          curl -v --retry 3 --retry-delay 10 \
+            -X POST "$API_BASE_URL/api/system/takeout" \
             -H "x-api-token: $API_TOKEN"
 
       - name: Call reserve API
         run: |
-          curl -X POST "$API_BASE_URL/api/system/reserve" \
+          curl -v --retry 3 --retry-delay 10 \
+            -X POST "$API_BASE_URL/api/system/reserve" \
             -H "x-api-token: $API_TOKEN"
