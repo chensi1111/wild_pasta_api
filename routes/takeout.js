@@ -8,10 +8,14 @@ const {verifyToken} = require("../middleware/auth");
 const sendEmail = require("../utils/sendEmail");
 const {getProductList,getProductListForPay} = require('../utils/translateMap')
 const dayjs = require("dayjs")
+const utc = require('dayjs/plugin/utc');
+const timezone = require('dayjs/plugin/timezone');
 const {generateCancelToken} = require('../utils/token')
 const ecpay_payment = require('ecpay_aio_nodejs/lib/ecpay_payment.js');
 const options = require('ecpay_aio_nodejs/conf/config-example');
 const { genCheckMacValue } = require('../utils/ecpay');
+dayjs.extend(utc);
+dayjs.extend(timezone);
 const formatDate = (dateString) => {
     return dayjs(dateString).format('YYYY/MM/DD HH:mm:ss');
   };
@@ -157,7 +161,7 @@ router.post("/pay",async (req,res) => {
   const randomPart = randomUUID().replace(/-/g, '').slice(0, 5).toUpperCase(); 
   const ord_number = `TKO${year}${month}${day}${randomPart}`;
 
-  const ord_time = dayjs().format('YYYY/MM/DD HH:mm:ss');
+  const ord_time = dayjs().tz("Asia/Taipei").format("YYYY-MM-DD HH:mm:ss");
   const total =String(price - discount)
   const status = 'pending'
   try {
@@ -201,9 +205,6 @@ router.post("/pay-return",async (req, res) => {
     process.env.ECPAY_HASH_KEY,
     process.env.ECPAY_HASH_IV
   );
-  console.log(params,'params',process.env.ECPAY_HASH_KEY,process.env.ECPAY_HASH_IV)
-  console.log(checkValue,'checkValue')
-  console.log(params.CheckMacValue,'params.CheckMacValue')
   try {
   await client.query('BEGIN');
    if (params.CheckMacValue !== checkValue) {
@@ -236,6 +237,7 @@ router.post("/pay-return",async (req, res) => {
      // 取消訂單token
      const cancel_token = generateCancelToken()
      const orderTime = dayjs(paymentData.date).hour(Number(paymentData.end_time.slice(0,2))).minute(Number(paymentData.end_time.slice(3,5)));
+     const date = dayjs(paymentData.date).format('YYYY/MM/DD')
      const cancel_expired = orderTime.add(-90, 'minute').toISOString();
      const status = 'active'
     userId = paymentData.userId || null;
@@ -293,7 +295,7 @@ router.post("/pay-return",async (req, res) => {
             </tr>
             <tr>
               <td style="padding: 8px; border-bottom: 1px solid #ddd;">取餐日期</td>
-              <td style="padding: 8px; border-bottom: 1px solid #ddd; color: #333;">${paymentData.date}</td>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd; color: #333;">${date}</td>
             </tr>
             <tr>
               <td style="padding: 8px; border-bottom: 1px solid #ddd;">取餐時間</td>
