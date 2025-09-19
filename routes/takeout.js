@@ -11,7 +11,7 @@ const dayjs = require("dayjs")
 const {generateCancelToken} = require('../utils/token')
 const ecpay_payment = require('ecpay_aio_nodejs/lib/ecpay_payment.js');
 const options = require('ecpay_aio_nodejs/conf/config-example');
-const { genCheckMacValue } = require('./utils/ecpay');
+const { genCheckMacValue } = require('../utils/ecpay');
 const formatDate = (dateString) => {
     return dayjs(dateString).format('YYYY/MM/DD HH:mm:ss');
   };
