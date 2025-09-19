@@ -168,7 +168,8 @@ router.post("/pay",async (req,res) => {
       MerchantID: process.env.ECPAY_Merchant_ID,       
       HashKey: process.env.ECPAY_HASH_KEY,            
       HashIV: process.env.ECPAY_HASH_IV,              
-      IsProduction: false               
+      IsProduction: false,
+      MercProfile: 'ECpayAioNodeJS'               
     };
     const base_param = {
     MerchantTradeNo: ord_number,
