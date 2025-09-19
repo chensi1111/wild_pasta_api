@@ -168,8 +168,7 @@ router.post("/pay",async (req,res) => {
       MerchantID: process.env.ECPAY_Merchant_ID,       
       HashKey: process.env.ECPAY_HASH_KEY,            
       HashIV: process.env.ECPAY_HASH_IV,              
-      IsProduction: false,
-      MercProfile: 'ECpayAioNodeJS'               
+      IsProduction: false              
     };
     const base_param = {
     MerchantTradeNo: ord_number,
@@ -182,7 +181,7 @@ router.post("/pay",async (req,res) => {
     ChoosePayment: 'ALL'
     };
     console.log(options,'options')
-    const create = new ecpay_payment(options);
+    const create = new ecpay_payment(options,'ECpayAioNodeJS');
     console.log(base_param,'base_param')
     const html = create.payment_client.aio_check_out_all(base_param);
     const cleanHtml = html.replace(/<script[\s\S]*<\/script>/gi, '');
