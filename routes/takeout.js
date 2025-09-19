@@ -11,6 +11,7 @@ const dayjs = require("dayjs")
 const {generateCancelToken} = require('../utils/token')
 const ecpay_payment = require('ecpay_aio_nodejs/lib/ecpay_payment.js');
 const options = require('ecpay_aio_nodejs/conf/config-example');
+const { genCheckMacValue } = require('./utils/ecpay');
 const formatDate = (dateString) => {
     return dayjs(dateString).format('YYYY/MM/DD HH:mm:ss');
   };
@@ -192,16 +193,19 @@ router.post("/pay",async (req,res) => {
 router.post("/pay-return",async (req, res) => {
   logger.info('/api/takeout/pay-return',req.body)
   const params = req.body;
-  const ecpay = new ecpay_payment(options);
   const client = await db.connect();
   let userId
+  const checkValue = genCheckMacValue(
+    params,
+    process.env.ECPAY_HASH_KEY,
+    process.env.ECPAY_HASH_IV
+  );
   try {
   await client.query('BEGIN');
-  const valid = ecpay.payment_client.aio_check_mac_value(params);
-    if (!valid) {
-      logger.warn('CheckMacValue 驗證失敗');
-      return res.send('0|驗證失敗');
-    }
+   if (params.CheckMacValue !== checkValue) {
+    logger.warn('CheckMacValue 驗證失敗');
+    return res.send('0|Fail');
+  }
   if (params.RtnCode === '1') {
     // 付款成功 
       const paymentResult = await client.query(
