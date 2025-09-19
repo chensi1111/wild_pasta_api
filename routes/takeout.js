@@ -235,7 +235,7 @@ router.post("/pay-return",async (req, res) => {
      }
      // 取消訂單token
      const cancel_token = generateCancelToken()
-     const orderTime = dayjs(`${paymentData.date} ${paymentData.end_time}`, 'YYYY-MM-DD HH:mm');
+     const orderTime = dayjs(paymentData.date).hour(Number(paymentData.end_time.slice(0,2))).minute(Number(paymentData.end_time.slice(3,5)));
      const cancel_expired = orderTime.add(-90, 'minute').toISOString();
      const status = 'active'
     userId = paymentData.userId || null;
