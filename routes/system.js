@@ -6,6 +6,11 @@ const logger=require('../logger');
 const router = express.Router();
 const db =require('../db')
 const response=require('../utils/response_codes')
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+dayjs.extend(utc);
+dayjs.extend(timezone);
 const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
 const REDIRECT_URI = process.env.REDIRECT_URI
@@ -49,12 +54,7 @@ router.post("/takeout",verifyAPI, async (req, res) => {
   logger.info("/api/system/takeout");
   try {
     await db.query('DELETE FROM takeout_capacity');
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, '0'); 
-    const dd = String(today.getDate()).padStart(2, '0');
-
-    const localDate = `${yyyy}-${mm}-${dd}`;
+    const localDate = dayjs().tz("Asia/Taipei").format("YYYY-MM-DD");
     for (const slot of timeSlots) {
       await db.query(
         `INSERT INTO takeout_capacity (time_slot, max_capacity,date) VALUES ($1, $2, $3)`,
