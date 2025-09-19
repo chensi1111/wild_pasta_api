@@ -162,8 +162,8 @@ router.post("/pay",async (req,res) => {
   const status = 'pending'
   try {
     await db.query(
-      'INSERT INTO payment_request (ord_number,ord_time,user_id,name,date,start_time,end_time,list,price,discount,point,remark,phone_number,email,status) VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)',
-      [ord_number,ord_time,userId,name,date,start_time,end_time,list,price,discount,point,remark,phone_number,email,status]
+      'INSERT INTO payment_request (ord_number,ord_time,user_id,name,date,start_time,end_time,list,count,price,discount,point,remark,phone_number,email,status) VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)',
+      [ord_number,ord_time,userId,name,date,start_time,end_time,list,count,price,discount,point,remark,phone_number,email,status]
     );
     const base_param = {
     MerchantTradeNo: ord_number,
@@ -217,7 +217,7 @@ router.post("/pay-return",async (req, res) => {
        [params.MerchantTradeNo]
     );
     const paymentData = paymentResult.rows[0]
-    console.log(paymentData,'paymentData',paymentResult.rows,'paymentResult.rows')
+    console.log(paymentData,'paymentData')
      const capacityResult = await client.query(
        `
        UPDATE takeout_capacity
