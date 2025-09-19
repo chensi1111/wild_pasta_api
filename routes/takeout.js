@@ -10,6 +10,7 @@ const {getProductList,getProductListForPay} = require('../utils/translateMap')
 const dayjs = require("dayjs")
 const {generateCancelToken} = require('../utils/token')
 const ecpay_payment = require('ecpay_aio_nodejs/lib/ecpay_payment.js');
+const options = require('ecpay_aio_nodejs/conf/config-example');
 const { genCheckMacValue } = require('../utils/ecpay');
 const formatDate = (dateString) => {
     return dayjs(dateString).format('YYYY/MM/DD HH:mm:ss');
@@ -164,12 +165,6 @@ router.post("/pay",async (req,res) => {
       'INSERT INTO payment_request (ord_number,ord_time,user_id,name,date,start_time,end_time,list,price,discount,point,remark,phone_number,email,status) VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)',
       [ord_number,ord_time,userId,name,date,start_time,end_time,list,price,discount,point,remark,phone_number,email,status]
     );
-    const options = {
-      MerchantID: process.env.ECPAY_Merchant_ID,       
-      HashKey: process.env.ECPAY_HASH_KEY,            
-      HashIV: process.env.ECPAY_HASH_IV,              
-      IsProduction: false              
-    };
     const base_param = {
     MerchantTradeNo: ord_number,
     MerchantTradeDate: ord_time,
@@ -181,7 +176,7 @@ router.post("/pay",async (req,res) => {
     ChoosePayment: 'ALL'
     };
     console.log(options,'options')
-    const create = new ecpay_payment(options,'ECpayAioNodeJS');
+    const create = new ecpay_payment(options);
     console.log(base_param,'base_param')
     const html = create.payment_client.aio_check_out_all(base_param);
     const cleanHtml = html.replace(/<script[\s\S]*<\/script>/gi, '');
