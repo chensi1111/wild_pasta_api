@@ -200,6 +200,8 @@ router.post("/pay-return",async (req, res) => {
     process.env.ECPAY_HASH_KEY,
     process.env.ECPAY_HASH_IV
   );
+  console.log(checkValue,'checkValue')
+  console.log(params.CheckMacValue,'params.CheckMacValue')
   try {
   await client.query('BEGIN');
    if (params.CheckMacValue !== checkValue) {
