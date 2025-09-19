@@ -161,7 +161,7 @@ router.post("/pay",async (req,res) => {
   const randomPart = randomUUID().replace(/-/g, '').slice(0, 5).toUpperCase(); 
   const ord_number = `TKO${year}${month}${day}${randomPart}`;
 
-  const ord_time = dayjs().tz("Asia/Taipei").format("YYYY-MM-DD HH:mm:ss");
+  const ord_time = dayjs().tz("Asia/Taipei").format("YYYY/MM/DD HH:mm:ss");
   const total =String(price - discount)
   const status = 'pending'
   try {
