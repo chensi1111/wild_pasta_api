@@ -180,6 +180,7 @@ router.post("/pay",async (req,res) => {
     ClientBackURL: 'https://wild-pasta.vercel.app/user/shopping-cart/check-out',
     ChoosePayment: 'ALL'
     };
+    console.log(options,'options')
     const create = new ecpay_payment(options);
     console.log(base_param,'base_param')
     const html = create.payment_client.aio_check_out_all(base_param);
@@ -205,6 +206,7 @@ router.post("/pay-return",async (req, res) => {
     process.env.ECPAY_HASH_KEY,
     process.env.ECPAY_HASH_IV
   );
+  console.log(params,'params',process.env.ECPAY_HASH_KEY,process.env.ECPAY_HASH_IV)
   console.log(checkValue,'checkValue')
   console.log(params.CheckMacValue,'params.CheckMacValue')
   try {
