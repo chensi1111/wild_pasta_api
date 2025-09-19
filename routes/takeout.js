@@ -217,6 +217,7 @@ router.post("/pay-return",async (req, res) => {
        [params.MerchantTradeNo]
     );
     const paymentData = paymentResult.rows[0]
+    console.log(paymentData,'paymentData',paymentResult.rows,'paymentResult.rows')
      const capacityResult = await client.query(
        `
        UPDATE takeout_capacity
