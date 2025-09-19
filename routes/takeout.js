@@ -6,9 +6,11 @@ const response=require('../utils/response_codes')
 const router = express.Router(); 
 const {verifyToken} = require("../middleware/auth");
 const sendEmail = require("../utils/sendEmail");
-const {getProductList} = require('../utils/translateMap')
+const {getProductList,getProductListForPay} = require('../utils/translateMap')
 const dayjs = require("dayjs")
 const {generateCancelToken} = require('../utils/token')
+const ecpay_payment = require('ecpay_aio_nodejs/lib/ecpay_payment.js');
+const options = require('ecpay_aio_nodejs/conf/config-example');
 const formatDate = (dateString) => {
     return dayjs(dateString).format('YYYY/MM/DD HH:mm:ss');
   };
@@ -106,6 +108,240 @@ router.post("/time", async (req, res) => {
     return sendError(res, response.server_error, '伺服器錯誤，請稍後再試', 500);
   }
 });
+// 付款
+router.post("/pay",async (req,res) => {
+  logger.info('/api/takeout/pay',req.body)
+  let { userId,name,date,start_time,end_time,list,count,price,discount,point,remark,phone_number,email } = req.body;
+  if(!name|| !date || !start_time|| !end_time|| !list|| !count|| !price|| !phone_number|| !email){
+    logger.warn("缺乏必要資料")
+    return sendError(res, response.missing_info, '缺乏必要資料');
+  }
+  if(name.length > 20) {
+    logger.warn("姓名過長")
+    return sendError(res, response.invalid_name, '姓名過長');
+  }
+  const phoneRegex = /^(09\d{8}|0\d{1,3}-?\d{6,8})$/;
+  if (!phoneRegex.test(phone_number)) {
+    logger.warn("電話號碼格式錯誤")
+    return sendError(res, response.invalid_phone, '電話號碼格式錯誤');
+  }
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    logger.warn("Email格式錯誤")
+    return sendError(res, response.invalid_email, 'Email格式錯誤');
+  }
+  const allowedTimes = ['11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30', '21:00'];
+  if (!allowedTimes.includes(start_time)) {
+    logger.warn("不符合規範的時間")
+    return sendError(res, response.invalid_time, '不符合規範的時間');
+  }
+  const dateRegex = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+  if (!dateRegex.test(date)) {
+    logger.warn("日期格式錯誤")
+    return sendError(res, response.invalid_date, '日期格式錯誤');
+  }
+  if(remark && remark.length > 100) {
+    logger.warn("備註過長")
+    return sendError(res, response.invalid_remark, '備註過長');
+  }
+  if(price<=0){
+    logger.warn("金額錯誤")
+    return sendError(res, response.invalid_price, '金額錯誤');
+  }
+  // 產生訂單號碼
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const randomPart = randomUUID().replace(/-/g, '').slice(0, 5).toUpperCase(); 
+  const ord_number = `TKO${year}${month}${day}${randomPart}`;
+
+  const ord_time = dayjs().format('YYYY/MM/DD HH:mm:ss');
+  const total =String(price - discount)
+  const status = 'pending'
+  try {
+    await db.query(
+      'INSERT INTO payment_request (ord_number,ord_time,user_id,name,date,start_time,end_time,list,price,discount,point,remark,phone_number,email,status) VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)',
+      [ord_number,ord_time,userId,name,date,start_time,end_time,list,price,discount,point,remark,phone_number,email,status]
+    );
+    const base_param = {
+    MerchantTradeNo: ord_number,
+    MerchantTradeDate: ord_time,
+    TotalAmount: total,
+    TradeDesc: 'Wild Pasta 外帶訂單',
+    ItemName: getProductListForPay(list),
+    ReturnURL: 'https://wild-pasta.vercel.app/user/shopping-cart/complete',
+    ClientBackURL: 'https://wild-pasta.vercel.app/user/shopping-cart/check-out',
+    NotifyURL: 'https://wild-pasta-api.onrender.com/api/takeout/pay-return',
+    ChoosePayment: 'ALL'
+    };
+    const create = new ecpay_payment(options);
+    const html = create.payment_client.aio_check_out_all(base_param);
+    const cleanHtml = html.replace(/<script[\s\S]*<\/script>/gi, '');
+    res.status(200).json({
+      code: response.success,
+      msg: '成功',
+      data: cleanHtml,
+    });
+  } catch (error) {
+    logger.error(error)
+    sendError(res, response.server_error, '伺服器錯誤',500);
+  }
+})
+// 綠界回傳
+router.post("/pay-return",async (req, res) => {
+  logger.info('/api/takeout/pay-return',req.body)
+  const params = req.body;
+  const ecpay = new ecpay_payment(options);
+  const client = await db.connect();
+  let userId
+  try {
+  await client.query('BEGIN');
+  const valid = ecpay.payment_client.aio_check_mac_value(params);
+    if (!valid) {
+      logger.warn('CheckMacValue 驗證失敗');
+      return res.send('0|驗證失敗');
+    }
+  if (params.RtnCode === '1') {
+    // 付款成功 
+      const paymentResult = await client.query(
+    'SELECT * FROM payment_request WHERE ord_number = $1',
+       [params.MerchantTradeNo]
+    );
+    const paymentData = paymentResult.rows[0]
+     const capacityResult = await client.query(
+       `
+       UPDATE takeout_capacity
+       SET max_capacity = max_capacity - $2
+       WHERE time_slot = $1
+       AND max_capacity >= $2
+       RETURNING time_slot, max_capacity
+       `,
+       [paymentData.start_time, paymentData.count]
+    );
+    if (capacityResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      logger.warn("該時段單量已滿")
+      return res.send('0|該時段單量已滿');
+     }
+     // 取消訂單token
+     const cancel_token = generateCancelToken()
+     const orderTime = dayjs(`${paymentData.date} ${paymentData.end_time}`, 'YYYY-MM-DD HH:mm');
+     const cancel_expired = orderTime.add(-90, 'minute').toISOString();
+     const status = 'active'
+    userId = paymentData.userId || null;
+    await client.query(
+      'INSERT INTO takeouts (ord_number,ord_time,user_id,name,date,start_time,end_time,list,price,discount,point,remark,phone_number,email,status,cancel_token,cancel_expired) VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)',
+      [paymentData.ord_number,paymentData.ord_time,userId,paymentData.name,paymentData.date,paymentData.start_time,paymentData.end_time,paymentData.list,paymentData.price,paymentData.discount,paymentData.point,paymentData.remark,paymentData.phone_number,paymentData.email,status,cancel_token,cancel_expired]
+    );
+    // 儲存使用點數
+    if(paymentData.discount > 0 && userId){
+      await client.query(
+        `INSERT INTO points (user_id, ord_number, ord_time, point, action,create_time) VALUES ($1, $2, $3, $4, 'use', $5)`,
+        [userId, paymentData.ord_number, paymentData.ord_time, paymentData.discount, paymentData.ord_time]
+      )
+    }
+    if(userId){
+      // 累積點數
+      await client.query(
+          `
+        UPDATE users
+        SET point = point + $1
+        WHERE user_id = $2
+        `,
+      [paymentData.point, userId] 
+      );
+      // 儲存點數記錄
+      await client.query(
+        `INSERT INTO points (user_id, ord_number, ord_time, point, action,create_time) VALUES ($1, $2, $3, $4, 'earn', $5)`,
+      [userId, paymentData.ord_number, paymentData.ord_time, paymentData.point, paymentData.ord_time]
+      )
+    }
+    await sendEmail(
+      paymentData.email,
+      "Wild Pasta 外帶下單成功",
+      `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #fafafa; border-radius: 8px; border: 1px solid #eaeaea;">
+        <div style="text-align: center; padding-bottom: 10px; border-bottom: 2px solid #333;">
+          <h1 style="color: #333; margin: 0; font-size: 28px;">Wild Pasta</h1>
+          <p style="color: #666; margin: 4px 0 0;">感謝您的訂單！</p>
+        </div>
+    
+        <div style="padding: 20px 0;">
+          <h2 style="color: #333; font-size: 20px;">訂單資訊</h2>
+          <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+            <tr>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd;">訂單編號</td>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd; font-weight: bold; color: #333;">${paymentData.ord_number}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd;">下單時間</td>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd; color: #333;">${formatDate(paymentData.ord_time)}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd;">姓名</td>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd; color: #333;">${paymentData.name}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd;">取餐日期</td>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd; color: #333;">${paymentData.date}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd;">取餐時間</td>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd; color: #333;">${paymentData.end_time}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd;white-space: nowrap;">訂單內容</td>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd; color: #333;word-break: break-word;max-width: 400px;">${getProductList(paymentData.list)}</td>
+            </tr>
+          </table>
+        </div>
+    
+        <div style="margin-top: 15px; padding: 15px; background-color:rgb(255, 255, 255); border-radius: 6px; border: 1px solid rgb(230, 230, 230);">
+          <p style="margin: 0; color: #333; font-size: 16px;">
+            小計：<b>${paymentData.price}</b> 元<br>
+            折扣：<b>${paymentData.discount}</b> 元<br>
+            總計：<b style="font-size: 18px; color: #d9534f;">${paymentData.price - paymentData.discount}</b> 元<br>
+            ${paymentData.point ? `獲得點數：<b>${paymentData.point}</b>` : ""}
+          </p>
+        </div>
+    
+        ${
+          paymentData.remark
+            ? `
+          <div style="margin-top: 15px; padding: 12px; background-color: rgb(255, 255, 255); border-radius: 6px; border: 1px solid rgb(230, 230, 230);">
+            <p style="margin: 0; color: #333;">備註：${paymentData.remark}</p>
+          </div>
+          `
+            : ""
+        }
+        <div style="margin-top: 15px; padding: 12px; background-color: rgb(255, 255, 255); border-radius: 6px; border: 1px solid rgb(230, 230, 230);">
+            <a href="http://localhost:5184/cancel-order?TKOToken=${cancel_token}" style="margin: 0; color: #333">點擊取消訂單</a>
+            <p style="margin: 5px 0 0 0; color: #d9534f;font-size:12px">取餐時間前90分鐘不可取消</p>
+          </div>
+        <div style="margin-top: 25px; text-align: center; padding-top: 10px; border-top: 1px solid #eaeaea;">
+          <p style="margin: 0; font-size: 14px; color: #999;">感謝您選擇 Wild Pasta</p>
+          <p style="margin: 4px 0 0; font-size: 14px; color: #999;">如有問題，請聯絡我們：<a href="mailto:chensiProjectTest4832@gmail.com" style="color: #333; text-decoration: none;">chensiProjectTest4832@gmail.com</a></p>
+        </div>
+      </div>
+      `
+    );
+  } else {
+    // 付款失敗
+    logger.warn('付款失敗');
+    return res.send('0|付款失敗');
+  }
+  await client.query('COMMIT');
+  return res.send('1|OK');
+} catch (error) {
+  await client.query('ROLLBACK');
+  logger.error(error)
+  return res.send('0|FAIL');
+}finally {
+  // 釋放連線
+  client.release();
+}
+})
 // 下單
 router.post("/order",async (req, res) => {
   /* 	

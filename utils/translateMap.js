@@ -47,7 +47,17 @@ const getProductList = (list) => {
     })
     .join("<br>");
 };
+const getProductListForPay = (list) => {
+  return list
+    .split(",") 
+    .map(item => {
+      const [code, qty] = item.split("_");
+      const name = productMap[code];
+      return `${name}*${qty}`;
+    })
+    .join("#");
+};
 const getThemeList = (theme) => {
   return themeMap[theme] || "未指定";
 };
-module.exports = {getProductList,getThemeList}
+module.exports = {getProductList,getThemeList,getProductListForPay}
