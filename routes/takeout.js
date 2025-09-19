@@ -170,12 +170,12 @@ router.post("/pay",async (req,res) => {
     TotalAmount: total,
     TradeDesc: 'Wild Pasta 外帶訂單',
     ItemName: getProductListForPay(list),
-    ReturnURL: 'https://wild-pasta.vercel.app/user/shopping-cart/complete',
+    ReturnURL: 'https://wild-pasta-api.onrender.com/api/takeout/pay-return',
     ClientBackURL: 'https://wild-pasta.vercel.app/user/shopping-cart/check-out',
-    NotifyURL: 'https://wild-pasta-api.onrender.com/api/takeout/pay-return',
     ChoosePayment: 'ALL'
     };
     const create = new ecpay_payment(options);
+    console.log(base_param,'base_param')
     const html = create.payment_client.aio_check_out_all(base_param);
     const cleanHtml = html.replace(/<script[\s\S]*<\/script>/gi, '');
     res.status(200).json({

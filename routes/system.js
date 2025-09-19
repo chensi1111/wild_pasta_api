@@ -6,9 +6,9 @@ const logger=require('../logger');
 const router = express.Router();
 const db =require('../db')
 const response=require('../utils/response_codes')
-import dayjs from 'dayjs';
-import utc from 'dayjs/plugin/utc';
-import timezone from 'dayjs/plugin/timezone';
+const dayjs = require("dayjs")
+const utc = require('dayjs/plugin/utc');
+const timezone = require('dayjs/plugin/timezone');
 dayjs.extend(utc);
 dayjs.extend(timezone);
 const CLIENT_ID = process.env.CLIENT_ID;
