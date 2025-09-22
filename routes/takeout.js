@@ -203,8 +203,8 @@ router.post("/pay-return",async (req, res) => {
     }
     await client.query('BEGIN');
     const paymentResult = await client.query(
-    'SELECT * FROM payment_request WHERE ord_number = $1 AND status = pending',
-       [params.MerchantTradeNo]
+    'SELECT * FROM payment_request WHERE ord_number = $1 AND status = $2',
+       [params.MerchantTradeNo, 'pending']
     );
     const paymentData = paymentResult.rows[0]
     if (!paymentData) {
