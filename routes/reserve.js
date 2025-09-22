@@ -9,8 +9,12 @@ const {generateCancelToken} = require('../utils/token')
 const {getThemeList} = require('../utils/translateMap')
 const sendEmail = require("../utils/sendEmail");
 const dayjs = require("dayjs")
-const formatDate = (dateString) => {
-    return dayjs(dateString).format('YYYY/MM/DD HH:mm:ss');
+const utc = require('dayjs/plugin/utc');
+const timezone = require('dayjs/plugin/timezone');
+dayjs.extend(utc);
+dayjs.extend(timezone);
+const formatDate = (date) => {
+    return dayjs.utc(date).tz('Asia/Taipei').format('YYYY/MM/DD HH:mm:ss')
 };
 
 function sendError(res, code, msg, status = 400) {
@@ -151,15 +155,12 @@ router.post('/',verifyToken, async(req, res) => {
       return sendError(res, response.invalid_allergy, '過敏備註過長');
     }
     // 產生訂單號碼
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const randomPart = randomUUID().replace(/-/g, '').slice(0, 5).toUpperCase(); 
-    const ord_number = `ORD${year}${month}${day}-${randomPart}`;
+    const datePart = dayjs().format('YYYYMMDD');
+    const randomPart = randomUUID().replace(/-/g, '').slice(0, 5).toUpperCase();
+    const ord_number = `ORD${datePart}${randomPart}`;
     const affectedSlots = timeOverlapMap[time];
     // 下單時間
-    const ord_time = new Date().toISOString()
+    const ord_time = dayjs().toISOString();
 
     // 取消訂單token
     const cancel_token = generateCancelToken()
@@ -171,7 +172,7 @@ router.post('/',verifyToken, async(req, res) => {
         SELECT t.time_slot, t.max_capacity, COALESCE(SUM(r.people), 0) AS reserved
         FROM time_slots_capacity t
         LEFT JOIN reserves r 
-        ON r.date = t.date AND r.time <= t.time_slot AND (r.time + INTERVAL '1 hour 30 minutes') > t.time_slot
+        ON r.date = t.date AND r.time BETWEEN (t.time_slot - INTERVAL '1 hour') AND t.time_slot
         WHERE t.date = $1 AND t.time_slot = ANY($2)
         GROUP BY t.time_slot, t.max_capacity
       `, [date, affectedSlots]);
@@ -255,7 +256,7 @@ router.post('/',verifyToken, async(req, res) => {
             : ""
         }
         <div style="margin-top: 15px; padding: 12px; background-color: rgb(255, 255, 255); border-radius: 6px; border: 1px solid rgb(230, 230, 230);">
-            <a href="http://localhost:5184/cancel-order?ORDToken=${cancel_token}" style="margin: 0; color: #333">點擊取消訂單</a>
+            <a href="${process.env.WEBSITE_URL}/cancel-order?ORDToken=${cancel_token}" style="margin: 0; color: #333">點擊取消訂單</a>
             <p style="margin: 5px 0 0 0; color: #d9534f;font-size:12px">預約時間前30分鐘不可取消</p>
           </div>
         <div style="margin-top: 25px; text-align: center; padding-top: 10px; border-top: 1px solid #eaeaea;">
@@ -325,8 +326,7 @@ router.post('/date',async(req, res) => {
         FROM time_slots_capacity t
         LEFT JOIN reserves r 
         ON r.date = t.date 
-        AND r.time <= t.time_slot
-        AND (r.time + INTERVAL '1 hour 30 minutes') > t.time_slot
+        AND r.time BETWEEN (t.time_slot - INTERVAL '1 hour') AND t.time_slot
         WHERE t.date = $1 
         GROUP BY t.time_slot, t.max_capacity
         ORDER BY t.time_slot

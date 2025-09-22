@@ -16,9 +16,6 @@ const options = require('ecpay_aio_nodejs/conf/config-example');
 const { genCheckMacValue } = require('../utils/ecpay');
 dayjs.extend(utc);
 dayjs.extend(timezone);
-const formatDate = (dateString) => {
-    return dayjs(dateString).format('YYYY/MM/DD HH:mm:ss');
-  };
 
 function sendError(res, code, msg, data, status = 400) {
   return res.status(status).json({ code, msg, data });
@@ -79,18 +76,16 @@ router.post("/time", async (req, res) => {
 
     const rows = result.rows;
     const availableTimes = [];
-    let today
+    const todayTaipei = dayjs().tz("Asia/Taipei").format("YYYY-MM-DD");
     for (let i = 0; i < rows.length; i++) {
       let current = rows[i];
-      today = new Date().toISOString().split('T')[0];
-      const startTime = new Date(`${today}T${current.time_slot}`);
+      const startTime = dayjs.tz(`${todayTaipei}T${current.time_slot}`, "Asia/Taipei");
 
       if (count <= current.max_capacity) {
         availableTimes.push({
           start: current.time_slot,
-          end: new Date(startTime.getTime() + 30 * 60000).toTimeString().split(' ')[0]
+          end: startTime.add(30, 'minute').format('HH:mm:ss')
         });
-        continue; 
       }
     }
 
@@ -103,7 +98,7 @@ router.post("/time", async (req, res) => {
       code: response.success,
       msg: '查詢成功',
       data: {
-        today,
+        today:todayTaipei,
         availableTimes
     }
     });
@@ -154,14 +149,11 @@ router.post("/pay",async (req,res) => {
     return sendError(res, response.invalid_price, '金額錯誤');
   }
   // 產生訂單號碼
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  const randomPart = randomUUID().replace(/-/g, '').slice(0, 5).toUpperCase(); 
-  const ord_number = `TKO${year}${month}${day}${randomPart}`;
-
-  const ord_time = dayjs().tz("Asia/Taipei").format("YYYY/MM/DD HH:mm:ss");
+  const datePart = dayjs().format('YYYYMMDD');
+  const randomPart = randomUUID().replace(/-/g, '').slice(0, 5).toUpperCase();
+  const ord_number = `TKO${datePart}${randomPart}`;
+  const ord_time = dayjs().toISOString();
+  const taipeiOrd_time = dayjs().tz("Asia/Taipei").format("YYYY/MM/DD HH:mm:ss");
   const total =String(price - discount)
   const status = 'pending'
   try {
@@ -171,17 +163,15 @@ router.post("/pay",async (req,res) => {
     );
     const base_param = {
     MerchantTradeNo: ord_number,
-    MerchantTradeDate: ord_time,
+    MerchantTradeDate: taipeiOrd_time,
     TotalAmount: total,
     TradeDesc: 'Wild Pasta 外帶訂單',
     ItemName: getProductListForPay(list),
     ReturnURL: 'https://wild-pasta-api.onrender.com/api/takeout/pay-return',
-    ClientBackURL: 'https://wild-pasta.vercel.app/user/shopping-cart/check-out',
+    ClientBackURL: 'https://wild-pasta.vercel.app/user/shopping-cart/complete',
     ChoosePayment: 'ALL'
     };
-    console.log(options,'options')
     const create = new ecpay_payment(options);
-    console.log(base_param,'base_param')
     const html = create.payment_client.aio_check_out_all(base_param);
     const cleanHtml = html.replace(/<script[\s\S]*<\/script>/gi, '');
     res.status(200).json({
@@ -200,26 +190,32 @@ router.post("/pay-return",async (req, res) => {
   const params = req.body;
   const client = await db.connect();
   let userId
-  const checkValue = genCheckMacValue(
-    params,
-    process.env.ECPAY_HASH_KEY,
-    process.env.ECPAY_HASH_IV
-  );
+  
   try {
-  await client.query('BEGIN');
-   if (params.CheckMacValue !== checkValue) {
-    logger.warn('CheckMacValue 驗證失敗');
-    return res.send('0|Fail');
-  }
-  if (params.RtnCode === '1') {
-    // 付款成功 
-      const paymentResult = await client.query(
-    'SELECT * FROM payment_request WHERE ord_number = $1',
+    const checkValue = genCheckMacValue(
+      params,
+      process.env.ECPAY_HASH_KEY,
+      process.env.ECPAY_HASH_IV
+    );
+    if (params.CheckMacValue !== checkValue) {
+      logger.warn('CheckMacValue 驗證失敗');
+      return res.send('0|Fail');
+    }
+    await client.query('BEGIN');
+    const paymentResult = await client.query(
+    'SELECT * FROM payment_request WHERE ord_number = $1 AND status = pending',
        [params.MerchantTradeNo]
     );
     const paymentData = paymentResult.rows[0]
-    console.log(paymentData,'paymentData')
-     const capacityResult = await client.query(
+    if (!paymentData) {
+      await client.query('ROLLBACK');
+      logger.warn('找不到訂單');
+      return res.send('1|OK');
+    }
+  
+    if (params.RtnCode === '1') {
+    // 付款成功 
+    const capacityResult = await client.query(
        `
        UPDATE takeout_capacity
        SET max_capacity = max_capacity - $2
@@ -232,24 +228,26 @@ router.post("/pay-return",async (req, res) => {
     if (capacityResult.rows.length === 0) {
       await client.query('ROLLBACK');
       logger.warn("該時段單量已滿")
-      return res.send('0|該時段單量已滿');
+      return res.send('1|OK');
      }
      // 取消訂單token
      const cancel_token = generateCancelToken()
      const orderTime = dayjs(paymentData.date).hour(Number(paymentData.end_time.slice(0,2))).minute(Number(paymentData.end_time.slice(3,5)));
+     const taipei = dayjs.tz(paymentData.ord_time, "Asia/Taipei");
+     const utcTime = taipei.utc().format();
      const date = dayjs(paymentData.date).format('YYYY/MM/DD')
      const cancel_expired = orderTime.add(-90, 'minute').toISOString();
      const status = 'active'
-    userId = paymentData.userId || null;
+    userId = paymentData.user_id || null;
     await client.query(
       'INSERT INTO takeouts (ord_number,ord_time,user_id,name,date,start_time,end_time,list,price,discount,point,remark,phone_number,email,status,cancel_token,cancel_expired) VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)',
-      [paymentData.ord_number,paymentData.ord_time,userId,paymentData.name,paymentData.date,paymentData.start_time,paymentData.end_time,paymentData.list,paymentData.price,paymentData.discount,paymentData.point,paymentData.remark,paymentData.phone_number,paymentData.email,status,cancel_token,cancel_expired]
+      [paymentData.ord_number,utcTime,userId,paymentData.name,paymentData.date,paymentData.start_time,paymentData.end_time,paymentData.list,paymentData.price,paymentData.discount,paymentData.point,paymentData.remark,paymentData.phone_number,paymentData.email,status,cancel_token,cancel_expired]
     );
     // 儲存使用點數
     if(paymentData.discount > 0 && userId){
       await client.query(
         `INSERT INTO points (user_id, ord_number, ord_time, point, action,create_time) VALUES ($1, $2, $3, $4, 'use', $5)`,
-        [userId, paymentData.ord_number, paymentData.ord_time, paymentData.discount, paymentData.ord_time]
+        [userId, paymentData.ord_number, utcTime, paymentData.discount, utcTime]
       )
     }
     if(userId){
@@ -265,7 +263,7 @@ router.post("/pay-return",async (req, res) => {
       // 儲存點數記錄
       await client.query(
         `INSERT INTO points (user_id, ord_number, ord_time, point, action,create_time) VALUES ($1, $2, $3, $4, 'earn', $5)`,
-      [userId, paymentData.ord_number, paymentData.ord_time, paymentData.point, paymentData.ord_time]
+      [userId, paymentData.ord_number, utcTime, paymentData.point, utcTime]
       )
     }
     await sendEmail(
@@ -287,7 +285,7 @@ router.post("/pay-return",async (req, res) => {
             </tr>
             <tr>
               <td style="padding: 8px; border-bottom: 1px solid #ddd;">下單時間</td>
-              <td style="padding: 8px; border-bottom: 1px solid #ddd; color: #333;">${formatDate(paymentData.ord_time)}</td>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd; color: #333;">${paymentData.ord_time}</td>
             </tr>
             <tr>
               <td style="padding: 8px; border-bottom: 1px solid #ddd;">姓名</td>
@@ -327,7 +325,7 @@ router.post("/pay-return",async (req, res) => {
             : ""
         }
         <div style="margin-top: 15px; padding: 12px; background-color: rgb(255, 255, 255); border-radius: 6px; border: 1px solid rgb(230, 230, 230);">
-            <a href="http://localhost:5184/cancel-order?TKOToken=${cancel_token}" style="margin: 0; color: #333">點擊取消訂單</a>
+            <a href="${process.env.WEBSITE_URL}/cancel-order?TKOToken=${cancel_token}" style="margin: 0; color: #333">點擊取消訂單</a>
             <p style="margin: 5px 0 0 0; color: #d9534f;font-size:12px">取餐時間前90分鐘不可取消</p>
           </div>
         <div style="margin-top: 25px; text-align: center; padding-top: 10px; border-top: 1px solid #eaeaea;">
@@ -337,10 +335,18 @@ router.post("/pay-return",async (req, res) => {
       </div>
       `
     );
+    await client.query(
+      'UPDATE payment_request SET status=$1 WHERE ord_number=$2',
+      ['success', params.MerchantTradeNo]
+    );
   } else {
     // 付款失敗
     logger.warn('付款失敗');
-    return res.send('0|付款失敗');
+    await client.query(
+      'UPDATE payment_request SET status=$1 WHERE ord_number=$2',
+      ['failed', params.MerchantTradeNo]
+    );
+    return res.send('1|OK');
   }
   await client.query('COMMIT');
   return res.send('1|OK');
@@ -349,7 +355,6 @@ router.post("/pay-return",async (req, res) => {
   logger.error(error)
   return res.send('0|FAIL');
 }finally {
-  // 釋放連線
   client.release();
 }
 })
@@ -735,15 +740,15 @@ router.post('/cancel', verifyToken, async (req, res) => {
 
     // 刪除訂單
     const status = 'cancelled';
-    const cancelTime = dayjs().toISOString();
+    const currentTime = dayjs().toISOString();
     await client.query(
       'UPDATE takeouts SET status = $1, cancel_time = $2 WHERE ord_number = $3',
-      [status, cancelTime, ord_number]
+      [status, currentTime, ord_number]
     );
     // 儲存點數記錄
     await client.query(
       `INSERT INTO points (user_id, ord_number, ord_time, point, action,create_time) VALUES ($1, $2, $3, $4, 'cancel', $5)`,
-      [userId, ord_number, ord_time, point, cancelTime]
+      [userId, ord_number, ord_time, point, currentTime]
     )
     await client.query('COMMIT');
 
@@ -854,16 +859,16 @@ router.post('/cancel-email', async (req, res) => {
     }
     // 刪除訂單
     const status = 'cancelled';
-    const cancelTime = dayjs().toISOString();
+    const currentTime = dayjs().toISOString();
     await client.query(
       'UPDATE takeouts SET status = $1, cancel_time = $2 WHERE ord_number = $3',
-      [status, cancelTime, ord_number]
+      [status, currentTime, ord_number]
     );
     // 儲存點數記錄
     if(user_id){
       await client.query(
         `INSERT INTO points (user_id, ord_number, ord_time, point, action,create_time) VALUES ($1, $2, $3, $4, 'cancel', $5)`,
-        [user_id, ord_number, ord_time, point, cancelTime]
+        [user_id, ord_number, ord_time, point, currentTime]
       )
     }
     await client.query('COMMIT');
