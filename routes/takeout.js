@@ -234,6 +234,7 @@ router.post("/pay-return",async (req, res) => {
      const cancel_token = generateCancelToken()
      const orderTime = dayjs(paymentData.date).hour(Number(paymentData.end_time.slice(0,2))).minute(Number(paymentData.end_time.slice(3,5)));
      const taipei = dayjs.utc(paymentData.ord_time).tz("Asia/Taipei");
+     const taipeiTime= taipei.format("YYYY/MM/DD HH:mm:ss")
      const date = dayjs(paymentData.date).format('YYYY/MM/DD')
      const cancel_expired = orderTime.add(-90, 'minute').toISOString();
      const status = 'active'
@@ -284,7 +285,7 @@ router.post("/pay-return",async (req, res) => {
             </tr>
             <tr>
               <td style="padding: 8px; border-bottom: 1px solid #ddd;">下單時間</td>
-              <td style="padding: 8px; border-bottom: 1px solid #ddd; color: #333;">${taipei}</td>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd; color: #333;">${taipeiTime}</td>
             </tr>
             <tr>
               <td style="padding: 8px; border-bottom: 1px solid #ddd;">姓名</td>
