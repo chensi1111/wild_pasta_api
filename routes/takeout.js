@@ -233,21 +233,20 @@ router.post("/pay-return",async (req, res) => {
      // 取消訂單token
      const cancel_token = generateCancelToken()
      const orderTime = dayjs(paymentData.date).hour(Number(paymentData.end_time.slice(0,2))).minute(Number(paymentData.end_time.slice(3,5)));
-     const taipei = dayjs.tz(paymentData.ord_time, "Asia/Taipei");
-     const utcTime = taipei.utc().format();
+     const taipei = dayjs.utc(paymentData.ord_time).tz("Asia/Taipei");
      const date = dayjs(paymentData.date).format('YYYY/MM/DD')
      const cancel_expired = orderTime.add(-90, 'minute').toISOString();
      const status = 'active'
     userId = paymentData.user_id || null;
     await client.query(
       'INSERT INTO takeouts (ord_number,ord_time,user_id,name,date,start_time,end_time,list,price,discount,point,remark,phone_number,email,status,cancel_token,cancel_expired) VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)',
-      [paymentData.ord_number,utcTime,userId,paymentData.name,paymentData.date,paymentData.start_time,paymentData.end_time,paymentData.list,paymentData.price,paymentData.discount,paymentData.point,paymentData.remark,paymentData.phone_number,paymentData.email,status,cancel_token,cancel_expired]
+      [paymentData.ord_number,paymentData.ord_time,userId,paymentData.name,paymentData.date,paymentData.start_time,paymentData.end_time,paymentData.list,paymentData.price,paymentData.discount,paymentData.point,paymentData.remark,paymentData.phone_number,paymentData.email,status,cancel_token,cancel_expired]
     );
     // 儲存使用點數
     if(paymentData.discount > 0 && userId){
       await client.query(
         `INSERT INTO points (user_id, ord_number, ord_time, point, action,create_time) VALUES ($1, $2, $3, $4, 'use', $5)`,
-        [userId, paymentData.ord_number, utcTime, paymentData.discount, utcTime]
+        [userId, paymentData.ord_number, paymentData.ord_time, paymentData.discount, paymentData.ord_time]
       )
     }
     if(userId){
@@ -263,7 +262,7 @@ router.post("/pay-return",async (req, res) => {
       // 儲存點數記錄
       await client.query(
         `INSERT INTO points (user_id, ord_number, ord_time, point, action,create_time) VALUES ($1, $2, $3, $4, 'earn', $5)`,
-      [userId, paymentData.ord_number, utcTime, paymentData.point, utcTime]
+      [userId, paymentData.ord_number, paymentData.ord_time, paymentData.point, paymentData.ord_time]
       )
     }
     await sendEmail(
@@ -285,7 +284,7 @@ router.post("/pay-return",async (req, res) => {
             </tr>
             <tr>
               <td style="padding: 8px; border-bottom: 1px solid #ddd;">下單時間</td>
-              <td style="padding: 8px; border-bottom: 1px solid #ddd; color: #333;">${paymentData.ord_time}</td>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd; color: #333;">${taipei}</td>
             </tr>
             <tr>
               <td style="padding: 8px; border-bottom: 1px solid #ddd;">姓名</td>
