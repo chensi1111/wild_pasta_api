@@ -886,4 +886,102 @@ router.post('/cancel-email', async (req, res) => {
     client.release();
   }
 });
+// 訂單結果
+router.post("/complete", async (req, res) => {
+  /* 	
+  #swagger.tags = ['takeout']
+  #swagger.summary = '訂單結果'
+  #swagger.requestBody = {
+    required: true,
+      content: {
+        "application/json": {
+            schema: {
+                type: "object",
+                required: ["ord_number"],
+                properties: {
+                    page: {
+                        type: "string",
+                        example: 'TKO20250922F4AD4'
+                    }
+                }
+            }
+        }
+    }
+  }
+  #swagger.responses[200] = {
+    description: "成功",
+    content: {
+        "application/json": {
+            example: {
+                code: "000",
+                msg: "成功",
+                data: {
+                  order: {
+                    name:"test12345",
+                    ord_number:"TKO20250908-5E6A0",
+                    ord_time:"2025-09-08T08:49:55.736Z",
+                    date:"2025-09-07T16:00:00.000Z",
+                    end_time:"21:30:00",
+                    email:"test12345@gmail.com",
+                    phone_number:"0912345678",
+                    price: 350,
+                    point: 10,
+                    discount: 0,
+                    list: "pastaD_1,pastaB_3",
+                    remark:"456",
+                    },
+                  payStatus: "success"
+                }
+            }
+        }
+    }
+  } 
+*/
+  logger.info("/api/takeout/complete", req.body);
+  let { ord_number } = req.body;
+  if (!ord_number) {
+    logger.warn("缺少訂單編號");
+    return sendError(res, response.missing_info, "缺少訂單編號");
+  }
+  try {
+    const paymentResult = await db.query(
+      "SELECT status FROM payment_request WHERE ord_number = $1",
+      [ord_number]
+    );
+
+    if (paymentResult.rows.length === 0) {
+      logger.warn("找不到付款資料");
+      return sendError(res, response.unfound_ord, "找不到付款資料");
+    }
+
+    const payment = paymentResult.rows[0];
+    let order = null;
+    if (payment.status === "success") {
+      const orderResult = await db.query(
+        `SELECT ord_number, ord_time, name, date, end_time, list, price, discount, point, remark, phone_number, email, status 
+         FROM takeouts WHERE ord_number = $1`,
+        [ord_number]
+      );
+
+      if (orderResult.rows.length === 0) {
+        logger.warn("付款成功，但找不到訂單資料");
+        return sendError(res, response.unfound_ord, "找不到訂單資料");
+      }
+
+      order = orderResult.rows[0];
+    }
+    res.status(200).json({
+      code: response.success,
+      msg: '查詢成功',
+      data: {
+        payStatus: payment.status,
+        order
+      }
+    });
+
+  } catch (error) {
+    logger.error(error)
+    return sendError(res, response.server_error, '伺服器錯誤，請稍後再試', 500);
+  }
+})
 module.exports = router;
