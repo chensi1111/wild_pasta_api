@@ -339,6 +339,8 @@ router.post("/pay-return",async (req, res) => {
       'UPDATE payment_request SET status=$1 WHERE ord_number=$2',
       ['success', params.MerchantTradeNo]
     );
+    await client.query('COMMIT');
+    return res.send('1|OK');
   } else {
     // 付款失敗
     logger.warn('付款失敗');
@@ -346,10 +348,9 @@ router.post("/pay-return",async (req, res) => {
       'UPDATE payment_request SET status=$1 WHERE ord_number=$2',
       ['failed', params.MerchantTradeNo]
     );
+    await client.query('COMMIT');
     return res.send('1|OK');
   }
-  await client.query('COMMIT');
-  return res.send('1|OK');
 } catch (error) {
   await client.query('ROLLBACK');
   logger.error(error)
