@@ -11,6 +11,7 @@ const {verifyToken} = require("../middleware/auth");
 const sendEmail = require("../utils/sendEmail");
 const dayjs = require("dayjs");
 const utc = require('dayjs/plugin/utc');
+const net = require('net');
 dayjs.extend(utc);
 
 function sendError(res, code, msg, status = 400) {
@@ -200,6 +201,13 @@ router.post("/login", async (req, res) => {
   const sanitizedBody = sanitizeBody(req.body);
   logger.info('/api/user/login',sanitizedBody)
   let { account, password, deviceId, deviceName } = req.body;
+  let ip = req.headers['x-forwarded-for']?.split(',').shift() || req.socket.remoteAddress;
+  ip = net.isIPv6(ip) && ip === '::1' ? '127.0.0.1' : ip;
+  
+  // 如果是 IPv6-mapped IPv4 (::ffff:xxx)，只取 IPv4 部分
+  if (ip && ip.includes('::ffff:')) {
+    ip = ip.split('::ffff:')[1];
+  }
   account = account?.trim();
 
   if (!account || !password || !deviceId || !deviceName) {
@@ -244,11 +252,11 @@ router.post("/login", async (req, res) => {
     const expiresAt = new Date(decoded.exp * 1000);
     // 將refreshToken存進資料庫
      await db.query(
-      `INSERT INTO refresh_tokens (token, user_id, device_id, device_name, last_used_at, expires_at)
-       VALUES ($1, $2, $3, $4, NOW(), $5)
+      `INSERT INTO refresh_tokens (token, user_id, device_id, device_name, last_used_at, expires_at,ip)
+       VALUES ($1, $2, $3, $4, NOW(), $5, $6)
        ON CONFLICT (user_id, device_id)
-       DO UPDATE SET token = $1, device_name = $4, last_used_at = NOW(), expires_at = $5`,
-      [tokens.refreshToken, user.user_id, deviceId, deviceName, expiresAt]
+       DO UPDATE SET token = $1, device_name = $4, last_used_at = NOW(), expires_at = $5 , ip = $6`,
+      [tokens.refreshToken, user.user_id, deviceId, deviceName, expiresAt, ip]
     );
     res.status(200).json({
       code: response.success,
@@ -1330,7 +1338,6 @@ router.post("/forgot-password", async (req, res) => {
     client.release();
   }
 })
-
 // 驗證忘記密碼
 router.post("/verify-forgot-password", async (req, res) => {
      /* 	
@@ -1637,8 +1644,10 @@ router.post("/accounts", verifyToken, async (req, res) => {
                 msg: "成功",
                 data: [{
                   device_name:"Windows - Chrome",
+                  device_id:"432de832-a6f2-40c3-aeea-fd1b57216134",
                   created_at:"2025-09-16 07:46:46.436",
-                  last_used_at:"2025-09-16 07:46:46.436"
+                  last_used_at:"2025-09-16 07:46:46.436",
+                  ip:"127.0.0.1",
                 }]
             }
         }
@@ -1649,7 +1658,7 @@ router.post("/accounts", verifyToken, async (req, res) => {
   const { userId } = req.user;
   try {
     const result = await db.query(
-      "SELECT id,created_at,last_used_at,device_name,device_id FROM refresh_tokens WHERE user_id = $1 ORDER BY last_used_at DESC",
+      "SELECT id,created_at,last_used_at,device_name,device_id,ip FROM refresh_tokens WHERE user_id = $1 ORDER BY last_used_at DESC",
       [userId]
     );
     const rows = result.rows
