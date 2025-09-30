@@ -19,7 +19,7 @@ function verifyToken(req, res, next) {
     req.user = decoded; 
     next(); 
   } catch (err) {
-    logger.error(err)
+    logger.warn(err)
     sendError(res, response.invalid_accessToken, '無效的 access token', 401);
   }
 }

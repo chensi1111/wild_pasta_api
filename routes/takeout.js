@@ -156,6 +156,7 @@ router.post("/pay",async (req,res) => {
   const taipeiOrd_time = dayjs().tz("Asia/Taipei").format("YYYY/MM/DD HH:mm:ss");
   const total =String(price - discount)
   const status = 'pending'
+  userId = userId || null;
   try {
     await db.query(
       'INSERT INTO payment_request (ord_number,ord_time,user_id,name,date,start_time,end_time,list,count,price,discount,point,remark,phone_number,email,status) VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)',
