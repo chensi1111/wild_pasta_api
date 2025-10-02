@@ -260,7 +260,7 @@ router.post("/login", async (req, res) => {
     res.cookie("refreshToken", tokens.refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "strict", 
+      sameSite: "none",
       maxAge: 7 * 24 * 60 * 60 * 1000 
     });
     res.status(200).json({
@@ -346,7 +346,7 @@ router.post("/refresh", async (req, res) => {
     res.cookie('refreshToken', tokens.refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: 'none',
       expires: expiresAt,
     });
     res.status(200).json({
@@ -392,7 +392,7 @@ router.post("/logout",verifyToken, async (req, res) => {
     await db.query("DELETE FROM refresh_tokens WHERE token = $1", [
       refreshToken,
     ]);
-    res.clearCookie("refreshToken", { httpOnly: true, sameSite: "strict", secure: process.env.NODE_ENV === "production" });
+    res.clearCookie("refreshToken", { httpOnly: true, sameSite: "none", secure: process.env.NODE_ENV === "production" });
     return res.status(200).json({
       code: response.success,
       msg: "成功登出",
