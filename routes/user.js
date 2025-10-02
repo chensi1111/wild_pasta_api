@@ -17,7 +17,7 @@ dayjs.extend(utc);
 function sendError(res, code, msg, status = 400) {
   return res.status(status).json({ code, msg });
 }
-const SENSITIVE_FIELDS = ['password', 'oldPassword', 'newPassword', 'refreshToken'];
+const SENSITIVE_FIELDS = ['password', 'oldPassword', 'newPassword'];
 function sanitizeBody(body) {
   const sanitized = { ...body };
   for (const field of SENSITIVE_FIELDS) {
@@ -127,7 +127,7 @@ router.post("/register", async (req, res) => {
     }
     const userId = uuidv4();
     // 將密碼用hash處理
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(password, 12);
 
     await db.query(
       "INSERT INTO users (user_id, account, password, email, name) VALUES ($1, $2, $3, $4, $5)",
@@ -184,7 +184,6 @@ router.post("/login", async (req, res) => {
                 code: "000",
                 msg: "成功",
                 data: {
-                  refreshToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIxMjNmNWIwNC01OTRjLTRiYmQtOWMyZS00NjM1MGE4ZTU3MDEiLCJpYXQiOjE3NTczMjMwOTQsImV4cCI6MTc1NzkyNzg5NH0.BX2QHVXnKKxXlFsi3UtTHUh4EiX5tuHXVjQcnboiu5A",
                   accessToken : "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIxMjNmNWIwNC01OTRjLTRiYmQtOWMyZS00NjM1MGE4ZTU3MDEiLCJpYXQiOjE3NTczMjMwOTQsImV4cCI6MTc1NzMyNjY5NH0.W9JKeMkZGFMtfydNFwkNylJLErq3v0U8RIxY__amguE",
                   account: "test12345",
                   email: "test12345@gmail.com",
@@ -258,11 +257,17 @@ router.post("/login", async (req, res) => {
        DO UPDATE SET token = $1, device_name = $4, last_used_at = NOW(), expires_at = $5 , ip = $6`,
       [tokens.refreshToken, user.user_id, deviceId, deviceName, expiresAt, ip]
     );
+    res.cookie("refreshToken", tokens.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict", 
+      maxAge: 7 * 24 * 60 * 60 * 1000 
+    });
     res.status(200).json({
       code: response.success,
       msg: "登入成功",
       data: {
-        ...tokens,
+        accessToken:tokens.accessToken,
         account: user.account,
         email: user.email,
         userId: user.user_id,
@@ -282,27 +287,6 @@ router.post("/refresh", async (req, res) => {
   /* 	
   #swagger.tags = ['user']
   #swagger.summary = '刷新token' 
-  #swagger.requestBody = {
-    required: true,
-      content: {
-        "application/json": {
-            schema: {
-                type: "object",
-                required: ["refreshToken","userId"],
-                properties: {
-                    refreshToken: {
-                        type: "string",
-                        example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIxMjNmNWIwNC01OTRjLTRiYmQtOWMyZS00NjM1MGE4ZTU3MDEiLCJpYXQiOjE3NTczMjMwOTQsImV4cCI6MTc1NzkyNzg5NH0.BX2QHVXnKKxXlFsi3UtTHUh4EiX5tuHXVjQcnboiu5A"
-                    },
-                    userId: {
-                        type: "string",
-                        example: "123f5b04-594c-4bbd-9c2e-46350a8e5701"
-                    }
-                }
-            }
-        }
-    }
-  }
   #swagger.responses[200] = {
     description: "成功",
     content: {
@@ -311,7 +295,6 @@ router.post("/refresh", async (req, res) => {
                 code: "000",
                 msg: "成功",
                 data: {
-                  refreshToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIxMjNmNWIwNC01OTRjLTRiYmQtOWMyZS00NjM1MGE4ZTU3MDEiLCJpYXQiOjE3NTczMjMwOTQsImV4cCI6MTc1NzkyNzg5NH0.BX2QHVXnKKxXlFsi3UtTHUh4EiX5tuHXVjQcnboiu5A",
                   accessToken : "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIxMjNmNWIwNC01OTRjLTRiYmQtOWMyZS00NjM1MGE4ZTU3MDEiLCJpYXQiOjE3NTczMjMwOTQsImV4cCI6MTc1NzMyNjY5NH0.W9JKeMkZGFMtfydNFwkNylJLErq3v0U8RIxY__amguE",
                 }
             }
@@ -319,9 +302,9 @@ router.post("/refresh", async (req, res) => {
     }
   } 
 */
-  const sanitizedBody = sanitizeBody(req.body);
-  logger.info('/api/user/refresh',sanitizedBody)
-  const { refreshToken } = req.body;
+  const cookies = req.cookies;
+  const refreshToken = cookies.refreshToken;
+  logger.info('/api/user/refresh',refreshToken)
   if (!refreshToken) {
     logger.warn("缺少RefreshToken")
     return sendError(res,response.missing_info,"缺少RefreshToken");
@@ -345,6 +328,7 @@ router.post("/refresh", async (req, res) => {
     } catch (err) {
       logger.warn("Refresh Token 過期");
       await db.query("DELETE FROM refresh_tokens WHERE token = $1", [refreshToken]);
+      res.clearCookie('refreshToken'); 
       return sendError(res, response.invalid_refreshToken, "Refresh Token 過期");
     }
     const userId = decoded.userId;
@@ -359,12 +343,17 @@ router.post("/refresh", async (req, res) => {
        WHERE token = $3`,
       [tokens.refreshToken, expiresAt, refreshToken]
     );
+    res.cookie('refreshToken', tokens.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      expires: expiresAt,
+    });
     res.status(200).json({
       code: response.success,
       msg: "成功刷新 Token",
       data: {
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
+        accessToken: tokens.accessToken
       },
     });
   } catch (error) {
@@ -377,23 +366,6 @@ router.post("/logout",verifyToken, async (req, res) => {
   /* 	
   #swagger.tags = ['user']
   #swagger.summary = '登出' 
-  #swagger.requestBody = {
-    required: true,
-      content: {
-        "application/json": {
-            schema: {
-                type: "object",
-                required: ["refreshToken"],
-                properties: {
-                    refreshToken: {
-                        type: "string",
-                        example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIxMjNmNWIwNC01OTRjLTRiYmQtOWMyZS00NjM1MGE4ZTU3MDEiLCJpYXQiOjE3NTczMjMwOTQsImV4cCI6MTc1NzkyNzg5NH0.BX2QHVXnKKxXlFsi3UtTHUh4EiX5tuHXVjQcnboiu5A"
-                    }
-                }
-            }
-        }
-    }
-  }
   #swagger.responses[200] = {
     description: "成功",
     content: {
@@ -407,9 +379,9 @@ router.post("/logout",verifyToken, async (req, res) => {
     }
   } 
 */
-  const sanitizedBody = sanitizeBody(req.body);
-  logger.info('/api/user/logout',sanitizedBody)
-  const { refreshToken } = req.body;
+  const cookies = req.cookies;
+  const refreshToken = cookies.refreshToken;
+  logger.info('/api/user/logout',refreshToken)
   if (!refreshToken) {
     logger.warn("缺少 Refresh Token")
     return sendError(res,response.missing_info,"缺少 Refresh Token");
@@ -420,6 +392,7 @@ router.post("/logout",verifyToken, async (req, res) => {
     await db.query("DELETE FROM refresh_tokens WHERE token = $1", [
       refreshToken,
     ]);
+    res.clearCookie("refreshToken", { httpOnly: true, sameSite: "strict", secure: process.env.NODE_ENV === "production" });
     return res.status(200).json({
       code: response.success,
       msg: "成功登出",

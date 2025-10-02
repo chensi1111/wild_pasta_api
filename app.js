@@ -3,6 +3,7 @@ const express = require('express');
 const logger= require('./logger');
 const UAParser = require("ua-parser-js");
 const app = express();
+const cookieParser = require("cookie-parser")
 const port = process.env.PORT || 3000;
 const reserveRouter = require('./routes/reserve'); 
 const userRouter = require('./routes/user');
@@ -15,9 +16,9 @@ const corsOptions = {
   origin: process.env.BASE_URL,
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-  // credentials: true
+  credentials: true
 };
-
+app.use(cookieParser());
 app.use(cors(corsOptions));
 app.use(express.json()); 
 app.use(express.urlencoded({ extended: true }));
