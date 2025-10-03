@@ -12,16 +12,35 @@ const errorRouter = require('./routes/error')
 const systemRouter = require('./routes/system')
 const swaggerUi = require("swagger-ui-express");
 const swaggerFile = require("./swagger-output.json");
+const rateLimit = require('express-rate-limit');
 const corsOptions = {
   origin: process.env.BASE_URL,
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
 };
+
+
+// 套用到所有 API
+
 app.use(cookieParser());
 app.use(cors(corsOptions));
 app.use(express.json()); 
 app.use(express.urlencoded({ extended: true }));
+
+// 每分鐘最多 60 次請求
+const apiLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, 
+  max: 10, 
+  standardHeaders: true, // 返回標準的 RateLimit headers
+  legacyHeaders: false, // 禁止 X-RateLimit-* headers
+   skip: (req) => req.method === "OPTIONS",  // 忽略 preflight
+  message: {
+    code: "429",
+    msg: "請求過於頻繁，請稍後再試"
+  }
+});
+app.use('/api/', apiLimiter);
 
 // Logging middleware
 app.use((req, res, next) => {

@@ -9,10 +9,20 @@ const jwt = require("jsonwebtoken");
 const { generateTokens,generateResetToken } = require("../utils/token");
 const {verifyToken} = require("../middleware/auth");
 const sendEmail = require("../utils/sendEmail");
+const rateLimit = require('express-rate-limit');
 const dayjs = require("dayjs");
 const utc = require('dayjs/plugin/utc');
 const net = require('net');
 dayjs.extend(utc);
+const contactLimiter = rateLimit({
+  windowMs: 30 * 1000, 
+  max: 1,               
+  message: {
+    code: "429",
+    msg: "請求過於頻繁，請稍後再試"
+  },
+  skipFailedRequests: true,// 只計算狀態碼 < 400 的請求
+});
 
 function sendError(res, code, msg, status = 400) {
   return res.status(status).json({ code, msg });
@@ -260,7 +270,7 @@ router.post("/login", async (req, res) => {
     res.cookie("refreshToken", tokens.refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "none",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000 
     });
     res.status(200).json({
@@ -346,7 +356,7 @@ router.post("/refresh", async (req, res) => {
     res.cookie('refreshToken', tokens.refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'none',
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       expires: expiresAt,
     });
     res.status(200).json({
@@ -392,7 +402,7 @@ router.post("/logout",verifyToken, async (req, res) => {
     await db.query("DELETE FROM refresh_tokens WHERE token = $1", [
       refreshToken,
     ]);
-    res.clearCookie("refreshToken", { httpOnly: true, sameSite: "none", secure: process.env.NODE_ENV === "production" });
+    res.clearCookie("refreshToken", { httpOnly: true, sameSite: process.env.NODE_ENV === "production" ? "none" : "lax", secure: process.env.NODE_ENV === "production" });
     return res.status(200).json({
       code: response.success,
       msg: "成功登出",
@@ -1514,7 +1524,7 @@ router.post("/reset-forgot-password", async (req, res) => {
   }
 })
 // 聯繫表單
-router.post("/contact",async (req, res) => {
+router.post("/contact",contactLimiter,async (req, res) => {
     /* 	
   #swagger.tags = ['user']
   #swagger.summary = '聯繫表單'

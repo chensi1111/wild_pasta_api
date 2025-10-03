@@ -8,6 +8,7 @@ const {verifyToken} = require("../middleware/auth");
 const {generateCancelToken} = require('../utils/token')
 const {getThemeList} = require('../utils/translateMap')
 const sendEmail = require("../utils/sendEmail");
+const rateLimit = require('express-rate-limit');
 const dayjs = require("dayjs")
 const utc = require('dayjs/plugin/utc');
 const timezone = require('dayjs/plugin/timezone');
@@ -16,6 +17,16 @@ dayjs.extend(timezone);
 const formatDate = (date) => {
     return dayjs.utc(date).tz('Asia/Taipei').format('YYYY/MM/DD HH:mm:ss')
 };
+const reserveLimiter = rateLimit({
+  windowMs: 30 * 1000, 
+  max: 1,               
+  keyGenerator: (req) => req.user.userId, 
+  message: {
+    code: "429",
+    msg: "請求過於頻繁，請稍後再試"
+  },
+  skipFailedRequests: true,// 只計算狀態碼 < 400 的請求
+});
 
 function sendError(res, code, msg, status = 400) {
   return res.status(status).json({ code, msg });
@@ -37,7 +48,7 @@ const timeOverlapMap = {
   '20:00': ['20:00'],
 };
 // 訂位
-router.post('/',verifyToken, async(req, res) => {
+router.post('/',verifyToken,reserveLimiter, async(req, res) => {
   /* 	
   #swagger.tags = ['reserve']
   #swagger.summary = '預約訂位'
