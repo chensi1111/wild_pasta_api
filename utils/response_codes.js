@@ -20,6 +20,8 @@ const responseCodes = {
   "invalid_token": "018",
   "invalid_infos":"019",
   "invalid_device":"020",
+  "invalid_point":"021",
+  "invalid_status":"022",
   "account_conflict": "101",
   "email_conflict": "102",
   "verify_conflict": "103",

@@ -16,12 +16,27 @@ const net = require('net');
 dayjs.extend(utc);
 const contactLimiter = rateLimit({
   windowMs: 30 * 1000, 
-  max: 1,               
+  max: 1,
+  standardHeaders: true, // 返回標準的 RateLimit headers
+  legacyHeaders: false, // 禁止 X-RateLimit-* headers               
   message: {
     code: "429",
     msg: "請求過於頻繁，請稍後再試"
   },
+  skip: (req) => req.method === "OPTIONS",  // 忽略 preflight
   skipFailedRequests: true,// 只計算狀態碼 < 400 的請求
+});
+const userLimiter = rateLimit({
+  windowMs: 30 * 1000, 
+  max: 15,
+  standardHeaders: true,
+  legacyHeaders: false,               
+  message: {
+    code: "429",
+    msg: "請求過於頻繁，請稍後再試"
+  },
+  skip: (req) => req.method === "OPTIONS",
+  skipFailedRequests: true,
 });
 
 function sendError(res, code, msg, status = 400) {
@@ -39,7 +54,7 @@ function sanitizeBody(body) {
 }
 
 // 註冊
-router.post("/register", async (req, res) => {
+router.post("/register",userLimiter, async (req, res) => {
   /* 	
   #swagger.tags = ['user']
   #swagger.summary = '註冊帳號' 
@@ -153,7 +168,7 @@ router.post("/register", async (req, res) => {
   }
 });
 // 登入
-router.post("/login", async (req, res) => {
+router.post("/login",userLimiter, async (req, res) => {
     /* 	
   #swagger.tags = ['user']
   #swagger.summary = '登入帳號' 
@@ -413,7 +428,7 @@ router.post("/logout",verifyToken, async (req, res) => {
   }
 });
 // 訂單
-router.post("/reserve", verifyToken, async (req, res) => {
+router.post("/reserve", verifyToken,userLimiter, async (req, res) => {
     /* 	
   #swagger.tags = ['user']
   #swagger.summary = '查詢預約訂單'
@@ -511,7 +526,7 @@ router.post("/reserve", verifyToken, async (req, res) => {
   }
 });
 // 外帶訂單
-router.post("/takeout", verifyToken, async (req, res) => {
+router.post("/takeout", verifyToken,userLimiter, async (req, res) => {
   /* 	
   #swagger.tags = ['user']
   #swagger.summary = '查詢外帶訂單'
@@ -610,7 +625,7 @@ router.post("/takeout", verifyToken, async (req, res) => {
   }
 });
 // 更新email請求
-router.post("/change-email-request", verifyToken, async (req, res) => {
+router.post("/change-email-request", verifyToken,userLimiter, async (req, res) => {
    /* 	
   #swagger.tags = ['user']
   #swagger.summary = '更改email請求'
@@ -732,7 +747,7 @@ router.post("/change-email-request", verifyToken, async (req, res) => {
   }
 });
 // 驗證email
-router.post("/verify-email", verifyToken, async (req, res) => {
+router.post("/verify-email", verifyToken,userLimiter, async (req, res) => {
    /* 	
   #swagger.tags = ['user']
   #swagger.summary = '驗證email'
@@ -833,7 +848,7 @@ router.post("/verify-email", verifyToken, async (req, res) => {
   }
 });
 // 更新電話號碼
-router.post("/change-phone", verifyToken, async (req, res) => {
+router.post("/change-phone", verifyToken,userLimiter, async (req, res) => {
   /* 	
   #swagger.tags = ['user']
   #swagger.summary = '更改電話號碼'
@@ -895,7 +910,7 @@ router.post("/change-phone", verifyToken, async (req, res) => {
   }
 });
 // 更新姓名
-router.post("/change-name", verifyToken, async (req, res) => {
+router.post("/change-name", verifyToken,userLimiter, async (req, res) => {
   /* 	
   #swagger.tags = ['user']
   #swagger.summary = '更改姓名'
@@ -960,7 +975,7 @@ router.post("/change-name", verifyToken, async (req, res) => {
   }
 });
 // 會員資訊
-router.post("/info", verifyToken, async (req, res) => {
+router.post("/info", verifyToken,userLimiter, async (req, res) => {
   /* 	
   #swagger.tags = ['user']
   #swagger.summary = '會員資訊'
@@ -1018,7 +1033,7 @@ router.post("/info", verifyToken, async (req, res) => {
   }
 });
 // 點數記錄
-router.post("/points", verifyToken, async (req, res) => {
+router.post("/points", verifyToken,userLimiter, async (req, res) => {
     /* 	
   #swagger.tags = ['user']
   #swagger.summary = '點數記錄'
@@ -1119,7 +1134,7 @@ router.post("/points", verifyToken, async (req, res) => {
   }
 })
 // 變更密碼
-router.post("/change-password", verifyToken, async (req, res) => {
+router.post("/change-password", verifyToken,userLimiter, async (req, res) => {
     /* 	
   #swagger.tags = ['user']
   #swagger.summary = '變更密碼'
@@ -1214,7 +1229,7 @@ router.post("/change-password", verifyToken, async (req, res) => {
   }
 })
 // 忘記密碼
-router.post("/forgot-password", async (req, res) => {
+router.post("/forgot-password",userLimiter, async (req, res) => {
    /* 	
   #swagger.tags = ['user']
   #swagger.summary = '忘記密碼驗證信'
@@ -1322,7 +1337,7 @@ router.post("/forgot-password", async (req, res) => {
   }
 })
 // 驗證忘記密碼
-router.post("/verify-forgot-password", async (req, res) => {
+router.post("/verify-forgot-password",userLimiter, async (req, res) => {
      /* 	
   #swagger.tags = ['user']
   #swagger.summary = '驗證忘記密碼'
@@ -1426,7 +1441,7 @@ router.post("/verify-forgot-password", async (req, res) => {
   }
 })
 // 忘記密碼重設密碼
-router.post("/reset-forgot-password", async (req, res) => {
+router.post("/reset-forgot-password",userLimiter, async (req, res) => {
   /* 	
   #swagger.tags = ['user']
   #swagger.summary = '忘記密碼重設密碼'
@@ -1611,7 +1626,7 @@ router.post("/contact",contactLimiter,async (req, res) => {
   }
 })
 // 已登入帳號
-router.post("/accounts", verifyToken, async (req, res) => {
+router.post("/accounts", verifyToken,userLimiter, async (req, res) => {
   /* 	
   #swagger.tags = ['user']
   #swagger.summary = '已登入帳號'
@@ -1656,7 +1671,7 @@ router.post("/accounts", verifyToken, async (req, res) => {
   }
 })
 // 登出其他帳號
-router.post("/kick-account",verifyToken, async (req, res) => {
+router.post("/kick-account",verifyToken,userLimiter, async (req, res) => {
   /* 	
   #swagger.tags = ['user']
   #swagger.summary = '登出其他帳號' 

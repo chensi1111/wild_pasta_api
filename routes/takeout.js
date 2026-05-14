@@ -14,14 +14,27 @@ const {generateCancelToken} = require('../utils/token')
 const ecpay_payment = require('ecpay_aio_nodejs/lib/ecpay_payment.js');
 const options = require('ecpay_aio_nodejs/conf/config-example');
 const { genCheckMacValue } = require('../utils/ecpay');
+const rateLimit = require('express-rate-limit');
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
 function sendError(res, code, msg, data, status = 400) {
   return res.status(status).json({ code, msg, data });
 }
+const searchLimiter = rateLimit({
+  windowMs: 30 * 1000, 
+  max: 15,
+  standardHeaders: true, 
+  legacyHeaders: false,              
+  message: {
+    code: "429",
+    msg: "請求過於頻繁，請稍後再試"
+  },
+  skip: (req) => req.method === "OPTIONS",
+  skipFailedRequests: true,
+});
 // 查詢可用時間
-router.post("/time", async (req, res) => {
+router.post("/time",searchLimiter, async (req, res) => {
   /* 	
   #swagger.tags = ['takeout']
   #swagger.summary = '查詢可用時間' 
@@ -90,8 +103,10 @@ router.post("/time", async (req, res) => {
     }
 
     if (availableTimes.length === 0) {
-      logger.warn("沒有可用的時段")
-      return sendError(res, response.empty_capacity, '沒有可用的時段');
+      res.status(200).json({
+      code: response.empty_capacity,
+      msg: '沒有可用的時段'
+    });
     }
 
     res.status(200).json({
@@ -100,6 +115,7 @@ router.post("/time", async (req, res) => {
       data: {
         today:todayTaipei,
         availableTimes
+
     }
     });
 
@@ -717,7 +733,7 @@ router.post('/cancel', verifyToken, async (req, res) => {
 
     const order = rows[0];
     const orderStatus = order.status;
-    if(orderStatus==='cancelled'){
+    if(orderStatus==='canceled'){
       await client.query('ROLLBACK');
       logger.warn("無法重複取消訂單")
       return sendError(res, response.cancel_error, '無法重複取消訂單');
@@ -741,7 +757,7 @@ router.post('/cancel', verifyToken, async (req, res) => {
     );
 
     // 刪除訂單
-    const status = 'cancelled';
+    const status = 'canceled';
     const currentTime = dayjs().toISOString();
     await client.query(
       'UPDATE takeouts SET status = $1, cancel_time = $2 WHERE ord_number = $3',
@@ -835,7 +851,7 @@ router.post('/cancel-email', async (req, res) => {
     const user_id = order.user_id
     const ord_number = order.ord_number
     const cancel_expired = order.cancel_expired
-    if(orderStatus==='cancelled'){
+    if(orderStatus==='canceled'){
       await client.query('ROLLBACK');
       logger.warn("無法重複取消訂單")
       return sendError(res, response.cancel_error, '無法重複取消訂單',{ord_number});
@@ -860,7 +876,7 @@ router.post('/cancel-email', async (req, res) => {
 
     }
     // 刪除訂單
-    const status = 'cancelled';
+    const status = 'canceled';
     const currentTime = dayjs().toISOString();
     await client.query(
       'UPDATE takeouts SET status = $1, cancel_time = $2 WHERE ord_number = $3',

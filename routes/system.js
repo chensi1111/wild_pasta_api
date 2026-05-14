@@ -54,11 +54,16 @@ router.post("/takeout",verifyAPI, async (req, res) => {
   logger.info("/api/system/takeout");
   try {
     await db.query('DELETE FROM takeout_capacity');
+    const capacityResult = await db.query(
+      'SELECT default_takeout_capacity FROM system_config WHERE id = $1',
+      [1]
+    );
+    const max_capacity = capacityResult.rows[0].default_takeout_capacity;
     const localDate = dayjs().tz("Asia/Taipei").format("YYYY-MM-DD");
     for (const slot of timeSlots) {
       await db.query(
         `INSERT INTO takeout_capacity (time_slot, max_capacity,date) VALUES ($1, $2, $3)`,
-        [slot, 30,localDate]
+        [slot, max_capacity,localDate]
       );
     }
     res.status(200).json({
@@ -101,6 +106,11 @@ router.post("/reserve",verifyAPI, async (req, res) => {
   logger.info("/api/system/reserve");
   try {
     await db.query('DELETE FROM time_slots_capacity WHERE date < CURRENT_DATE');
+    const capacityResult = await db.query(
+      'SELECT dafault_reserve_max_capacity FROM system_config WHERE id = $1',
+      [1]
+    );
+    const max_capacity = capacityResult.rows[0].dafault_reserve_max_capacity;
     const today = new Date();
     const endDate = new Date();
     endDate.setMonth(endDate.getMonth() + 3);
@@ -119,7 +129,7 @@ router.post("/reserve",verifyAPI, async (req, res) => {
   
         for (const ts of timeSlots) {
           values.push(`($${paramIndex++}, $${paramIndex++}, $${paramIndex++})`);
-          params.push(dateStr, ts, 48);
+          params.push(dateStr, ts, max_capacity);
         }
   
         const queryText = `INSERT INTO time_slots_capacity (date, time_slot, max_capacity) VALUES ${values.join(',')}`;

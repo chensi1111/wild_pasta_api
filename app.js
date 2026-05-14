@@ -10,9 +10,13 @@ const userRouter = require('./routes/user');
 const takeoutRouter = require('./routes/takeout')
 const errorRouter = require('./routes/error')
 const systemRouter = require('./routes/system')
+const userBackendRouter =require('./routes/user_backend')
+const reserveBackendRouter = require('./routes/reserve_backend')
+const reserveTodayBackendRouter = require('./routes/reserveToday_backend')
+const reservesManageBackendRouter = require('./routes/reserveManage_backend')
+const systemCapacityBackendRouter = require('./routes/systemCapacity_backend')
 const swaggerUi = require("swagger-ui-express");
 const swaggerFile = require("./swagger-output.json");
-const rateLimit = require('express-rate-limit');
 const corsOptions = {
   origin: process.env.BASE_URL,
   methods: ['GET', 'POST', 'OPTIONS'],
@@ -27,20 +31,6 @@ app.use(cookieParser());
 app.use(cors(corsOptions));
 app.use(express.json()); 
 app.use(express.urlencoded({ extended: true }));
-
-// 每分鐘最多 60 次請求
-const apiLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000, 
-  max: 10, 
-  standardHeaders: true, // 返回標準的 RateLimit headers
-  legacyHeaders: false, // 禁止 X-RateLimit-* headers
-   skip: (req) => req.method === "OPTIONS",  // 忽略 preflight
-  message: {
-    code: "429",
-    msg: "請求過於頻繁，請稍後再試"
-  }
-});
-app.use('/api/', apiLimiter);
 
 // Logging middleware
 app.use((req, res, next) => {
@@ -78,6 +68,11 @@ app.use('/api/user', userRouter);
 app.use('/api/takeout', takeoutRouter);
 app.use('/api/error', errorRouter);
 app.use('/api/system', systemRouter);
+app.use('/api-backend/users',userBackendRouter)
+app.use('/api-backend/reserves',reserveBackendRouter)
+app.use('/api-backend/reservesManage',reservesManageBackendRouter)
+app.use('/api-backend/systemCapacity',systemCapacityBackendRouter)
+app.use('/api-backend/reservesToday',reserveTodayBackendRouter)
 // Swagger UI 路由
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerFile));
 

@@ -19,13 +19,29 @@ const formatDate = (date) => {
 };
 const reserveLimiter = rateLimit({
   windowMs: 30 * 1000, 
-  max: 1,               
+  max: 1,
+  standardHeaders: true, // 返回標準的 RateLimit headers
+  legacyHeaders: false, // 禁止 X-RateLimit-* headers               
   keyGenerator: (req) => req.user.userId, 
   message: {
     code: "429",
     msg: "請求過於頻繁，請稍後再試"
   },
+  skip: (req) => req.method === "OPTIONS",  // 忽略 preflight
   skipFailedRequests: true,// 只計算狀態碼 < 400 的請求
+});
+const searchLimiter = rateLimit({
+  windowMs: 30 * 1000, 
+  max: 15,
+  standardHeaders: true, 
+  legacyHeaders: false,              
+  keyGenerator: (req) => req.user.userId, 
+  message: {
+    code: "429",
+    msg: "請求過於頻繁，請稍後再試"
+  },
+  skip: (req) => req.method === "OPTIONS",
+  skipFailedRequests: true,
 });
 
 function sendError(res, code, msg, status = 400) {
@@ -291,7 +307,7 @@ router.post('/',verifyToken,reserveLimiter, async(req, res) => {
       }
   });
 // 查詢日期
-router.post('/date',async(req, res) => {
+router.post('/date',searchLimiter,async(req, res) => {
     /* 	
   #swagger.tags = ['reserve']
   #swagger.summary = '查詢可用時間' 
@@ -422,7 +438,7 @@ router.post('/cancel', verifyToken, async (req, res) => {
 
     const order = rows[0];
     const orderStatus = order.status;
-    if(orderStatus==='cancelled'){
+    if(orderStatus==='canceled'){
       await client.query('ROLLBACK');
       logger.warn("無法重複取消訂單")
       return sendError(res, response.cancel_error, '無法重複取消訂單');
@@ -436,7 +452,7 @@ router.post('/cancel', verifyToken, async (req, res) => {
     }
 
     // 刪除訂單
-    const status = 'cancelled';
+    const status = 'canceled';
     const cancelTime = dayjs().toISOString();
     await client.query(
       'UPDATE reserves SET status = $1, cancel_time = $2 WHERE ord_number = $3',
@@ -519,7 +535,7 @@ router.post('/cancel-email', async (req, res) => {
     }
     const order = rows[0];
     const orderStatus = order.status;
-    if(orderStatus==='cancelled'){
+    if(orderStatus==='canceled'){
       await client.query('ROLLBACK');
       logger.warn("無法重複取消訂單")
       return sendError(res, response.cancel_error, '無法重複取消訂單');
@@ -536,7 +552,7 @@ router.post('/cancel-email', async (req, res) => {
     }
 
     // 刪除訂單
-    const status = 'cancelled';
+    const status = 'canceled';
     const cancelTime = dayjs().toISOString();
     await client.query(
       'UPDATE reserves SET status = $1, cancel_time = $2 WHERE ord_number = $3',
