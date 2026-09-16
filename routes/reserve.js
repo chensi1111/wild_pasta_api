@@ -22,7 +22,6 @@ const reserveLimiter = rateLimit({
   max: 1,
   standardHeaders: true, // 返回標準的 RateLimit headers
   legacyHeaders: false, // 禁止 X-RateLimit-* headers               
-  keyGenerator: (req) => req.user.userId, 
   message: {
     code: "429",
     msg: "請求過於頻繁，請稍後再試"
@@ -35,7 +34,6 @@ const searchLimiter = rateLimit({
   max: 15,
   standardHeaders: true, 
   legacyHeaders: false,              
-  keyGenerator: (req) => req.user.userId, 
   message: {
     code: "429",
     msg: "請求過於頻繁，請稍後再試"
